@@ -88,16 +88,28 @@
 4. ~~Kaggle上でDescription（英語）を充実させる~~ → 完了（2/8）。subtitle + 充実description（選手リスト・カラム表・game_type・分析アイデア・関連ノートブックリンク）
 5. ~~既存ノートブック（ダルビッシュ・今永・千賀・菊池）からデータセットにリンク~~ → 完了（2/8）。4ノートブックv2 push済み（pybaseball API→データセットCSV読み込みに変更）
 6. ~~データセット公開（public）~~ → 完了（2/8）
-7. ~~イチロー追加~~ → 完了（2/8）。4,424打撃データ追加、v2アップロード、Description更新済み
-8. **Kaggle上でノートブック実行結果を確認**（v2が正常完了しているか）
-8. **Usability Score向上を検討**（現在0.35→カバー画像追加等）
-9. **ブログ記事**（Zenn/Qiita）← Dataset 1紹介記事
+7. ~~イチロー追加~~ → 完了（2/8）。4,424打撃データ追加
+8. ~~ノートブック実行結果確認~~ → 4ノートブック全てCOMPLETE（2/8）
+9. ~~Usability Score~~ → 0.35→0.65に向上（2/8）
+10. ~~カバー画像~~ → Gemini生成画像をKaggle UIで設定済み（2/8）
+11. **データセット再作成中**（2/8）← **次ここから再開**
+    - 不要ファイル（description_backup.txt, generate.ipynb）がKaggle上で消せないため、データセットを削除→再作成
+    - pybaseballでデータ再取得中（バックグラウンド実行）
+    - 再取得完了後の手順:
+      1. `kaggle datasets create -p .` で新規作成
+      2. `kaggle datasets metadata --update` でDescription再適用（scratchpad/kaggle-meta/にJSON保存済み）
+      3. Kaggle UIでカバー画像を再設定（`kaggle-datasets/cover_image.png`）
+      4. 4ノートブック再push（dataset_sourcesリンク）→ kernel-metadata.jsonを各ノートブック用に書き換えてpush
+      5. **CSVをgitignoreから外してGitHubにもコミット**（バックアップ用）
+12. **ブログ記事**（Zenn/Qiita）← Dataset 1紹介記事
 
 #### Kaggleメタデータ更新方法（学んだこと）
 - `kaggle datasets metadata <owner/dataset> -p <dir>` でダウンロード → `{"info": {...}}` 形式
 - 同形式で編集して `kaggle datasets metadata <owner/dataset> --update -p <dir>` で更新
 - ローカルの `dataset-metadata.json`（`{"title":...}` 形式）とは別形式なので注意
 - `subtitle`は80文字以内、`keywords`はKaggle公式タグのみ有効（`baseball`, `japan`は有効、`mlb`, `statcast`等は無効）
+- **`kaggle datasets version`は前バージョンのファイルを引き継ぐ**（個別ファイル削除不可）。不要ファイルを入れたら削除→再作成が必要
+- **CSVは.gitignoreから外してGitHubにもバックアップすること**（Kaggle削除時にデータロスト防止）
 
 ### 2. MLB Bat Tracking Leaderboard (2024-2025)【低作業量】
 - **フォルダ**: `mlb-bat-tracking/`（未作成）
