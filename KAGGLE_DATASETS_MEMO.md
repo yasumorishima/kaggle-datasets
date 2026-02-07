@@ -84,8 +84,18 @@
 1. ~~Colabでgenerate.ipynb実行~~ → ローカルpybaseballで実行完了（2/8）
 2. ~~CSVダウンロード → ローカルフォルダに配置~~ → 完了
 3. ~~`kaggle datasets create`~~ → アップロード済み（2/8）
-4. **Kaggle上でDescription（英語）を充実させる** ← 次ここ
-5. **既存ノートブック（ダルビッシュ・今永・千賀・菊池）からデータセットにリンク**
+4. ~~Kaggle上でDescription（英語）を充実させる~~ → 完了（2/8）。subtitle + 充実description（選手リスト・カラム表・game_type・分析アイデア・関連ノートブックリンク）
+5. ~~既存ノートブック（ダルビッシュ・今永・千賀・菊池）からデータセットにリンク~~ → 完了（2/8）。4ノートブックv2 push済み（pybaseball API→データセットCSV読み込みに変更）
+6. ~~データセット公開（public）~~ → 完了（2/8）
+7. **Kaggle上でノートブック実行結果を確認**（v2が正常完了しているか）
+8. **Usability Score向上を検討**（現在0.35→カバー画像追加等）
+9. **ブログ記事**（Zenn/Qiita）← Dataset 1紹介記事
+
+#### Kaggleメタデータ更新方法（学んだこと）
+- `kaggle datasets metadata <owner/dataset> -p <dir>` でダウンロード → `{"info": {...}}` 形式
+- 同形式で編集して `kaggle datasets metadata <owner/dataset> --update -p <dir>` で更新
+- ローカルの `dataset-metadata.json`（`{"title":...}` 形式）とは別形式なので注意
+- `subtitle`は80文字以内、`keywords`はKaggle公式タグのみ有効（`baseball`, `japan`は有効、`mlb`, `statcast`等は無効）
 
 ### 2. MLB Bat Tracking Leaderboard (2024-2025)【低作業量】
 - **フォルダ**: `mlb-bat-tracking/`（未作成）
