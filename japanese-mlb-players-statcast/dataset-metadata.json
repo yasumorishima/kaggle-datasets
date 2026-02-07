@@ -17,11 +17,11 @@
     },
     {
       "path": "japanese_mlb_batting.csv",
-      "description": "Pitch-by-pitch Statcast data for Japanese MLB batters (2015-2025). 52,261 rows, 119 columns."
+      "description": "Pitch-by-pitch Statcast data for Japanese MLB batters (2015-2025). 56,685 rows, 119 columns."
     },
     {
       "path": "players.csv",
-      "description": "Player metadata for all 33 Japanese MLB players: MLBAM ID, name, role, team(s), NPB team, seasons, notes."
+      "description": "Player metadata for all 34 Japanese MLB players: MLBAM ID, name, role, team(s), NPB team, seasons, notes."
     }
   ]
 }
