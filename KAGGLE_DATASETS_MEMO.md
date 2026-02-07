@@ -18,14 +18,15 @@
 3. CSVをローカルにダウンロード → dataset-metadata.jsonと同じフォルダに配置
 4. `kaggle datasets create -p <folder>` で初回アップロード
 5. 更新時は `kaggle datasets version -p <folder> -m "update message"`
-6. CSVは.gitignoreで除外（大きいため）
+6. CSVはGitHubにもバックアップ（.gitignoreから除外済み）。ローカルには置かない（重いため）
 
 ## データセット一覧
 
 ### 1. Japanese MLB Players Statcast Data (2015-2025)【最優先】
 - **フォルダ**: `japanese-mlb-players-statcast/`
-- **ステータス**: **Kaggleアップロード済み**（2/8）。https://www.kaggle.com/datasets/yasunorim/japanese-mlb-players-statcast
-- **データ量**: 投球119,106件(25投手, 65MB) + 打撃56,685件(10打者, 31MB) + players.csv(34選手)
+- **ステータス**: **Kaggle公開済み**（2/8再作成）。https://www.kaggle.com/datasets/yasunorim/japan-mlb-pitchers-batters-statcast
+- **データ量**: 投球118,226件(25投手, 65MB) + 打撃56,362件(10打者, 31MB) + players.csv(34選手)
+- **GitHubバックアップ**: CSV含めてGitHubにpush済み（.gitignoreから除外）
 - **期待upvotes**: 10-30（Bronze-Silver）
 - **内容**: 日本人MLB選手全員のStatcast pitch-by-pitchデータ
 - **ファイル構成**:
@@ -92,16 +93,14 @@
 8. ~~ノートブック実行結果確認~~ → 4ノートブック全てCOMPLETE（2/8）
 9. ~~Usability Score~~ → 0.35→0.65に向上（2/8）
 10. ~~カバー画像~~ → Gemini生成画像をKaggle UIで設定済み（2/8）
-11. **データセット再作成中**（2/8）← **次ここから再開**
-    - 不要ファイル（description_backup.txt, generate.ipynb）がKaggle上で消せないため、データセットを削除→再作成
-    - pybaseballでデータ再取得中（バックグラウンド実行）
-    - 再取得完了後の手順:
-      1. `kaggle datasets create -p .` で新規作成
-      2. `kaggle datasets metadata --update` でDescription再適用（scratchpad/kaggle-meta/にJSON保存済み）
-      3. Kaggle UIでカバー画像を再設定（`kaggle-datasets/cover_image.png`）
-      4. 4ノートブック再push（dataset_sourcesリンク）→ kernel-metadata.jsonを各ノートブック用に書き換えてpush
-      5. **CSVをgitignoreから外してGitHubにもコミット**（バックアップ用）
-12. **ブログ記事**（Zenn/Qiita）← Dataset 1紹介記事
+11. ~~データセット再作成~~ → **完了**（2/8）
+    - 旧データセット削除→pybaseballで全データ再取得→新規作成
+    - 新URL: https://www.kaggle.com/datasets/yasunorim/japan-mlb-pitchers-batters-statcast
+    - タイトル変更: "Japan MLB Pitchers Batters Statcast"（旧タイトルがKaggle側で予約済みのため）
+    - Description・subtitle・カバー画像・Public設定完了
+    - 4ノートブックv3 push済み（dataset_sources更新）
+    - CSVはGitHubにバックアップ済み、ローカルからは削除（重いため）
+12. **ブログ記事**（Zenn/Qiita）← Dataset 1紹介記事 ← **次ここ**
 
 #### Kaggleメタデータ更新方法（学んだこと）
 - `kaggle datasets metadata <owner/dataset> -p <dir>` でダウンロード → `{"info": {...}}` 形式
@@ -110,6 +109,8 @@
 - `subtitle`は80文字以内、`keywords`はKaggle公式タグのみ有効（`baseball`, `japan`は有効、`mlb`, `statcast`等は無効）
 - **`kaggle datasets version`は前バージョンのファイルを引き継ぐ**（個別ファイル削除不可）。不要ファイルを入れたら削除→再作成が必要
 - **CSVは.gitignoreから外してGitHubにもバックアップすること**（Kaggle削除時にデータロスト防止）
+- **削除したデータセットのタイトル/slugは再利用不可**（Kaggle側で予約される）。再作成時は別タイトルが必要
+- **ローカルCSVは不要**（GitHubとKaggleにあれば十分。必要時は`git pull`で復元可能）
 
 ### 2. MLB Bat Tracking Leaderboard (2024-2025)【低作業量】
 - **フォルダ**: `mlb-bat-tracking/`（未作成）

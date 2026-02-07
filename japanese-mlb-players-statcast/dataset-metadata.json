@@ -1,15 +1,12 @@
 {
-  "title": "Japanese MLB Players Statcast Data 2015-2025",
-  "id": "yasunorim/japanese-mlb-players-statcast",
+  "title": "Japan MLB Pitchers Batters Statcast",
+  "id": "yasunorim/japan-mlb-pitchers-batters-statcast",
   "licenses": [
     {
       "name": "CC0-1.0"
     }
   ],
-  "keywords": [
-    "baseball",
-    "japan"
-  ],
+  "keywords": [],
   "resources": [
     {
       "path": "japanese_mlb_pitching.csv",
