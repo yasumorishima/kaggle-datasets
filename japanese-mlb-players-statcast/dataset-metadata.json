@@ -13,11 +13,11 @@
   "resources": [
     {
       "path": "japanese_mlb_pitching.csv",
-      "description": "Pitch-by-pitch Statcast data for Japanese MLB pitchers (2015-2025). 119,106 rows, 119 columns."
+      "description": "Pitch-by-pitch Statcast data for Japanese MLB pitchers (2015-2025). 118,226 rows, 119 columns."
     },
     {
       "path": "japanese_mlb_batting.csv",
-      "description": "Pitch-by-pitch Statcast data for Japanese MLB batters (2015-2025). 56,685 rows, 119 columns."
+      "description": "Pitch-by-pitch Statcast data for Japanese MLB batters (2015-2025). 56,362 rows, 119 columns."
     },
     {
       "path": "players.csv",

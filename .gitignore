@@ -1,5 +1,4 @@
-# Generated data files (too large for git)
-*.csv
+# Large binary files
 *.parquet
 *.zip
 
