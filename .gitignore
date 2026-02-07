@@ -1,0 +1,13 @@
+# Generated data files (too large for git)
+*.csv
+*.parquet
+*.zip
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# OS
+.DS_Store
+Thumbs.db

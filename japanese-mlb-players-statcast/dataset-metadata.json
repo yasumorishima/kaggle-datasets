@@ -1,0 +1,33 @@
+{
+  "title": "Japanese MLB Players Statcast Data 2015-2025",
+  "id": "yasunorim/japanese-mlb-players-statcast",
+  "licenses": [
+    {
+      "name": "CC0-1.0"
+    }
+  ],
+  "keywords": [
+    "baseball",
+    "mlb",
+    "statcast",
+    "japan",
+    "ohtani",
+    "darvish",
+    "pitching",
+    "batting"
+  ],
+  "resources": [
+    {
+      "path": "japanese_mlb_pitching.csv",
+      "description": "Pitch-by-pitch Statcast data for Japanese MLB pitchers (2015-2025)"
+    },
+    {
+      "path": "japanese_mlb_batting.csv",
+      "description": "Pitch-by-pitch Statcast data for Japanese MLB batters (2015-2025)"
+    },
+    {
+      "path": "players.csv",
+      "description": "Player metadata (name, team, position, NPB team, MLB debut year)"
+    }
+  ]
+}
