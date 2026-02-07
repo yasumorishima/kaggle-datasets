@@ -24,7 +24,8 @@
 
 ### 1. Japanese MLB Players Statcast Data (2015-2025)【最優先】
 - **フォルダ**: `japanese-mlb-players-statcast/`
-- **ステータス**: generate.ipynb作成済み → **Colab実行待ち**
+- **ステータス**: **Kaggleアップロード済み**（2/8）。https://www.kaggle.com/datasets/yasunorim/japanese-mlb-players-statcast
+- **データ量**: 投球119,106件(25投手, 65MB) + 打撃52,261件(9打者, 29MB) + players.csv(33選手)
 - **期待upvotes**: 10-30（Bronze-Silver）
 - **内容**: 日本人MLB選手全員のStatcast pitch-by-pitchデータ
 - **ファイル構成**:
@@ -77,14 +78,14 @@
 | 8 | 加藤豪将 | 641741⚠️ | TOR | 2022 | 日系アメリカ人 |
 | 9 | ラース・ヌートバー | 663457 | STL | 2021-2025 | 日系アメリカ人、WBC日本代表 |
 
-⚠️ = Colab初回実行時にplayerid_lookupで検証必要（13名）
+~~⚠️ = Colab初回実行時にplayerid_lookupで検証必要（13名）~~ → **全件検証済み（2/8）、9件修正済み**
 
 #### 次のステップ
-1. **Colabでgenerate.ipynb実行**（ID検証セル→データ取得→CSV保存）
-2. CSVダウンロード → ローカルフォルダに配置
-3. `kaggle datasets create -p japanese-mlb-players-statcast/`
-4. Kaggle上でDescription（英語）を充実させる
-5. 既存ノートブック（ダルビッシュ・今永・千賀・菊池）からデータセットにリンク
+1. ~~Colabでgenerate.ipynb実行~~ → ローカルpybaseballで実行完了（2/8）
+2. ~~CSVダウンロード → ローカルフォルダに配置~~ → 完了
+3. ~~`kaggle datasets create`~~ → アップロード済み（2/8）
+4. **Kaggle上でDescription（英語）を充実させる** ← 次ここ
+5. **既存ノートブック（ダルビッシュ・今永・千賀・菊池）からデータセットにリンク**
 
 ### 2. MLB Bat Tracking Leaderboard (2024-2025)【低作業量】
 - **フォルダ**: `mlb-bat-tracking/`（未作成）
