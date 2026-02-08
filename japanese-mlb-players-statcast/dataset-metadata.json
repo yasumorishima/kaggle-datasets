@@ -1,24 +1,17 @@
 {
-  "title": "Japan MLB Pitchers Batters Statcast",
   "id": "yasunorim/japan-mlb-pitchers-batters-statcast",
+  "title": "Japan MLB Pitchers Batters Statcast",
+  "subtitle": "All 34 Japanese MLB players: 118K pitching + 56K batting pitches",
+  "description": "# Japanese MLB Players Statcast Data (2015-2025)\n\nComplete pitch-by-pitch Statcast data for **every Japanese and Japanese-heritage player** who appeared in MLB from 2015 to 2025. This dataset covers **34 unique players** across **119 Statcast columns**, including the latest bat tracking metrics added in 2024.\n\n## What's Included\n\n### japanese_mlb_pitching.csv (65 MB)\n- **118,226 pitches** thrown by **25 pitcher entries** (24 unique pitchers + Ohtani)\n- Covers Regular Season, Spring Training, and Postseason\n\n### japanese_mlb_batting.csv (31 MB)\n- **56,362 pitches** faced by **10 batters**\n- Covers Regular Season, Spring Training, and Postseason\n\n### players.csv\n- Metadata for all **34 unique players**: MLBAM ID, name, role (pitcher/batter), MLB team(s), NPB (Japan) team, seasons, and notes\n\n## Players\n\n**Pitchers (24):** Shohei Ohtani, Yu Darvish, Yoshinobu Yamamoto, Shota Imanaga, Kodai Senga, Yusei Kikuchi, Yuki Matsui, Kenta Maeda, Tomoyuki Sugano, Roki Sasaki, Shinnosuke Ogasawara, Naoyuki Uwasawa, Hirokazu Sawamura, Shun Yamaguchi, Shintaro Fujinami, Kohei Arihara, Masahiro Tanaka, Yoshihisa Hirano, Kazuhisa Makita, Hisashi Iwakuma, Koji Uehara, Junichi Tazawa, Kyuji Fujikawa, Tsuyoshi Wada, Toru Murata\n\n**Batters (10):** Shohei Ohtani, Ichiro Suzuki, Seiya Suzuki, Masataka Yoshida, Yoshitomo Tsutsugo, Shogo Akiyama, Norichika Aoki, Munenori Kawasaki, Gosuke Katoh, Lars Nootbaar\n\n## Key Columns (119 total)\n\n| Category | Columns |\n|---|---|\n| **Pitch Info** | pitch_type, pitch_name, release_speed, release_spin_rate, spin_axis |\n| **Pitch Movement** | pfx_x, pfx_z, api_break_z_with_gravity, api_break_x_arm, arm_angle |\n| **Pitch Location** | plate_x, plate_z, zone, sz_top, sz_bot |\n| **Batted Ball** | launch_speed, launch_angle, hit_distance_sc, bb_type, hc_x, hc_y |\n| **Expected Stats** | estimated_ba_using_speedangle, estimated_woba_using_speedangle, woba_value |\n| **Bat Tracking (2024+)** | bat_speed, swing_length, attack_angle, swing_path_tilt |\n| **Game Context** | game_date, game_year, game_type, inning, balls, strikes, outs_when_up |\n| **Win Probability** | delta_home_win_exp, delta_run_exp, home_win_exp |\n\n## game_type Values\n\n| Code | Meaning |\n|---|---|\n| R | Regular Season |\n| S | Spring Training |\n| F | Wild Card |\n| D | Division Series |\n| L | League Championship Series |\n| W | World Series |\n\n## Analysis Ideas\n\n- Compare pitch arsenals of Japanese pitchers (Darvish's 7+ pitch types vs Uehara's splitter-dominant approach)\n- Study Ichiro's legendary contact approach in his final MLB seasons (2015-2019)\n- Track Ohtani's evolution as both pitcher and batter across 8 seasons\n- Analyze how NPB-trained pitchers adapt to MLB (first season vs later seasons)\n- Study the ghost fork phenomenon (Senga, Yamamoto, and other Japanese forkball specialists)\n- Use bat tracking data to compare batting approaches (Ohtani vs Suzuki vs Yoshida)\n- Build ML models to predict pitch outcomes or classify pitch types\n\n## Data Source\n\nData retrieved from [Baseball Savant](https://baseballsavant.mlb.com/) via the [pybaseball](https://github.com/jldbc/pybaseball) Python library. All MLBAM player IDs have been verified against the official database.\n\n## Related Notebooks\n\n- [Darvish Pitching Evolution 2021-2025](https://www.kaggle.com/code/yasunorim/darvish-pitching-evolution)\n- [Imanaga Rookie to Sophomore Pitching](https://www.kaggle.com/code/yasunorim/imanaga-rookie-to-sophomore-pitching)\n- [Senga Ghost Fork Analysis 2023-2025](https://www.kaggle.com/code/yasunorim/senga-ghost-fork-analysis-2023-2025)\n- [Kikuchi Slider Revolution 2019-2025](https://www.kaggle.com/code/yasunorim/kikuchi-slider-revolution-2019-2025)\n\n## Custom Column\n\nplayer_name_eng: English name added to every row for easy filtering by player. This column is not part of the original Statcast data.",
+  "keywords": [
+    "subject, health and fitness, exercise, sports, baseball",
+    "geography and places, asia, japan",
+    "subject, people and society, news",
+    "geography and places, north america, united states"
+  ],
   "licenses": [
     {
       "name": "CC0-1.0"
-    }
-  ],
-  "keywords": [],
-  "resources": [
-    {
-      "path": "japanese_mlb_pitching.csv",
-      "description": "Pitch-by-pitch Statcast data for Japanese MLB pitchers (2015-2025). 118,226 rows, 119 columns."
-    },
-    {
-      "path": "japanese_mlb_batting.csv",
-      "description": "Pitch-by-pitch Statcast data for Japanese MLB batters (2015-2025). 56,362 rows, 119 columns."
-    },
-    {
-      "path": "players.csv",
-      "description": "Player metadata for all 34 Japanese MLB players: MLBAM ID, name, role, team(s), NPB team, seasons, notes."
     }
   ]
 }

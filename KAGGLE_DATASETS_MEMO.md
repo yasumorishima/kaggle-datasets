@@ -100,7 +100,7 @@
     - Description・subtitle・カバー画像・Public設定完了
     - 4ノートブックv3 push済み（dataset_sources更新）
     - CSVはGitHubにバックアップ済み、ローカルからは削除（重いため）
-12. **ブログ記事**（Zenn/Qiita）← Dataset 1紹介記事 ← **次ここ**
+12. ~~**ブログ記事**（Zenn/Qiita）~~ → **完了**（2/10）。Kaggleノートブック使い方セクション追加・フォルダ名/slug補足説明追加
 
 #### Kaggleメタデータ更新方法（学んだこと）
 - `kaggle datasets metadata <owner/dataset> -p <dir>` でダウンロード → `{"info": {...}}` 形式
@@ -114,13 +114,15 @@
 
 ### 2. MLB Bat Tracking Leaderboard (2024-2025)【低作業量】
 - **フォルダ**: `mlb-bat-tracking/`
-- **ステータス**: **Kaggle公開済み**（2026-02-09）。https://www.kaggle.com/datasets/yasunorim/mlb-bat-tracking-2024-2025
+- **ステータス**: **完了**（2026-02-09公開、2/10ブログ記事公開）。https://www.kaggle.com/datasets/yasunorim/mlb-bat-tracking-2024-2025
 - **データ量**: 452打者（226/season）、19カラム、107KB
 - **期待upvotes**: 5-15（Bronze）
 - **内容**: 2024年新機能のバットトラッキングデータ（bat_speed, swing_length等）
 - **データソース**: Baseball Savant Bat Tracking Leaderboard（CSVダウンロード）
 - **特徴**: Kaggleにゼロのデータ。最新機能で話題性◎
 - **注意**: pybaseballには未実装（2.2.7時点）。Baseball Savantから直接取得
+- **分析ノートブック**: https://www.kaggle.com/code/yasunorim/bat-tracking-japanese-mlb-batters-2024-2025 （大谷/鈴木誠也/ヌートバー）
+- **ブログ記事**: Zenn/Qiita公開済み（Baseball Savant直接CSV取得方法・pybaseball未実装対処法・他リーダーボードURL紹介）
 
 ### 3. MLB Pitcher Arsenal Evolution (2020-2025)【中作業量】
 - **フォルダ**: `mlb-pitcher-arsenal-evolution/`（未作成）
