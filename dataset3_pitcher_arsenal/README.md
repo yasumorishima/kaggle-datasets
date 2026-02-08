@@ -1,110 +1,67 @@
-# MLB Pitcher Arsenal Evolution (2020-2025)
+# Dataset 3: MLB Pitcher Arsenal Evolution (2020-2025)
 
-Track how MLB pitchers' pitch mix and performance metrics evolve across six seasons (2020-2025).
+投手の球種構成（Arsenal）の年次変化を追跡するデータセット
 
-## 📊 Overview
+## 📊 Dataset Overview
 
-This dataset provides a comprehensive view of **pitcher arsenal evolution** in Major League Baseball. Each row represents a pitcher-season combination with detailed metrics for up to 18 pitch types in wide format.
+- **対象期間**: 2020-2025シーズン（6シーズン）
+- **対象投手**: 各シーズンで100球以上投球した投手
+- **データ形式**: Wide format（1行 = 投手×シーズン、球種を横展開）
+- **推定行数**: 5,000-10,000行
+- **推定カラム数**: 70-100列
 
-- **Time Period**: 2020-2025 seasons (6 seasons)
-- **Rows**: 4,253 pitcher-season combinations
-- **Columns**: 111 columns (3 identifiers + 18 pitch types × 6 metrics)
-- **Filter**: Only pitchers with 100+ pitches per season
-- **Format**: Wide format (one row per pitcher-season)
+## 🎯 主要球種
 
-## 🎯 Pitch Types
+FF (Fastball), SI (Sinker), FC (Cutter), SL (Slider), CU (Curveball), CH (Changeup), FS (Splitter), KC (Knuckle Curve), FO (Forkball), EP (Eephus), KN (Knuckleball)
 
-FF (Four-Seam Fastball), SI (Sinker), FC (Cutter), SL (Slider), CU (Curveball), CH (Changeup), FS (Splitter), KC (Knuckle Curve), FO (Forkball), EP (Eephus), KN (Knuckleball), ST (Sweeper), SV (Slurve), and more.
+## 📈 メトリクス（各球種ごと）
 
-## 📈 Metrics (per pitch type)
+- **usage_pct**: 使用率 (%)
+- **avg_speed**: 平均球速 (mph)
+- **avg_spin**: 平均回転数 (rpm)
+- **whiff_rate**: 空振り率
+- **avg_pfx_x**: 平均横変化量 (inch)
+- **avg_pfx_z**: 平均縦変化量 (inch)
 
-- **usage_pct**: Usage percentage (0-100%)
-- **avg_speed**: Average velocity (mph)
-- **avg_spin**: Average spin rate (rpm)
-- **whiff_rate**: Swing-and-miss rate (0-1)
-- **avg_pfx_x**: Average horizontal movement (inches)
-- **avg_pfx_z**: Average vertical movement (inches, gravity-adjusted)
+## 🚀 Usage
 
-## 🚀 Quick Start
-
-### Option 1: Google Colab (Recommended)
+### Google Colab（推奨）
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/yasumorishima/kaggle-datasets/blob/main/dataset3_pitcher_arsenal/pitcher_arsenal_evolution_2020_2025.ipynb)
 
-1. Click the badge above to open in Colab
-2. Run all cells in order
-3. `pitcher_arsenal_evolution_2020_2025.csv` will be downloaded
+1. 上のバッジをクリックしてColabで開く
+2. 全セルを順番に実行
+3. `pitcher_arsenal_evolution_2020_2025.csv` がダウンロードされる
 
-**Note**: Data collection takes 30-60 minutes.
+**注意**: データ取得に30分〜1時間かかります
 
-### Option 2: Local Execution
+### ローカル実行
 
 ```bash
-# Install required packages
+# 必要なパッケージインストール
 pip install pybaseball duckdb pandas numpy
 
-# Launch Jupyter Notebook
+# Jupyter Notebook起動
 jupyter notebook pitcher_arsenal_evolution_2020_2025.ipynb
 ```
 
 ## 📁 Files
 
-- `pitcher_arsenal_evolution_2020_2025.csv` - Main dataset (4,253 rows × 111 columns)
-- `pitcher_arsenal_evolution_2020_2025.ipynb` - Data collection notebook
-- `pitcher_arsenal_analysis.ipynb` - Example analysis notebook
-- `pitcher_arsenal_cover.png` - Cover image
-- `README.md` - This file
+- `pitcher_arsenal_evolution_2020_2025.ipynb` - データ取得ノートブック
+- `pitcher_arsenal_evolution_2020_2025.csv` - 出力データ（実行後に生成）
+- `README.md` - このファイル
 
 ## 🎓 Use Cases
 
-### Trend Analysis
-Track how pitchers adjust their arsenal over time. For example:
-- **Kikuchi's Slider Revolution**: Increased slider usage from 20% (2019) to 40+ (2022-2025)
-- **Velocity Changes**: Detect post-injury velocity drops or age-related decline
-
-### Team Strategy Research
-Analyze organization-level pitch mix preferences:
-- Houston Astros' heavy reliance on sliders
-- Tampa Bay Rays' emphasis on four-seam fastballs
-
-### Machine Learning Features
-Use arsenal metrics as features for:
-- Pitcher performance prediction (ERA, FIP, strikeout rate)
-- Injury risk assessment
-- Career trajectory modeling
-
-### Data Visualization
-Create interactive dashboards showing:
-- Individual pitcher trends over time
-- League-wide pitch type popularity shifts
-- Correlation heatmaps between pitch metrics
-
-## 📊 Data Source
-
-- **Source**: MLB Advanced Media (Statcast)
-- **Collection Method**: Automated pipeline using [pybaseball](https://github.com/jldbc/pybaseball) library
-- **Update Frequency**: Seasonal (updated after each MLB season)
+- 投手の球種トレンド分析（例: 菊池雄星のスライダー増加）
+- シーズン間の変化検出（例: 怪我前後の球速低下）
+- 球団別の戦略分析（例: アストロズのスライダー重視）
+- 機械学習の特徴量（投手パフォーマンス予測等）
 
 ## 🔗 Related Datasets
 
-- [Japanese MLB Players Statcast (2015-2025)](https://www.kaggle.com/datasets/yasunorim/japan-mlb-pitchers-batters-statcast) - Detailed pitch-by-pitch data for Japanese MLB players
-- [MLB Bat Tracking (2024-2025)](https://www.kaggle.com/datasets/yasunorim/mlb-bat-tracking-2024-2025) - Bat tracking metrics for all MLB batters
+- [Japanese MLB Players Statcast (2015-2025)](https://www.kaggle.com/datasets/yasunorim/japan-mlb-pitchers-batters-statcast) - 日本人MLB選手の詳細データ
 
-## 📝 Citation
+## 📝 License
 
-If you use this dataset in your work, please cite:
-
-```
-MLB Pitcher Arsenal Evolution (2020-2025)
-Data collected via pybaseball from MLB Advanced Media Statcast
-URL: https://www.kaggle.com/datasets/yasunorim/pitcher-arsenal-evolution-2020-2025
-DOI: [To be generated]
-```
-
-## 🙏 Acknowledgments
-
-Data provided by MLB Advanced Media via the [pybaseball](https://github.com/jldbc/pybaseball) library. Special thanks to the pybaseball contributors for maintaining this excellent tool.
-
-## 📄 License
-
-CC0: Public Domain. Data sourced from MLB Advanced Media (Statcast).
+データソース: MLB Advanced Media (Statcast)
