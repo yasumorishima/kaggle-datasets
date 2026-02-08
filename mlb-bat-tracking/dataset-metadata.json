@@ -1,0 +1,16 @@
+{
+  "title": "MLB Bat Tracking Leaderboard 2024-2025",
+  "id": "yasunorim/mlb-bat-tracking-2024-2025",
+  "licenses": [
+    {
+      "name": "CC0-1.0"
+    }
+  ],
+  "keywords": [],
+  "resources": [
+    {
+      "path": "mlb_bat_tracking_2024_2025.csv",
+      "description": "MLB Bat Tracking leaderboard data (2024-2025). Includes bat_speed, swing_length, squared_up_pct, and other new Statcast metrics introduced in 2024."
+    }
+  ]
+}

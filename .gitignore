@@ -1,6 +1,7 @@
 # Large binary files
 *.parquet
 *.zip
+*.csv
 
 # Python
 __pycache__/
