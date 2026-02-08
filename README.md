@@ -1,15 +1,15 @@
 # Kaggle Datasets
 
-Baseball-themed datasets published on Kaggle, generated with [pybaseball](https://github.com/jldbc/pybaseball).
+Baseball-themed datasets published on Kaggle, generated with [pybaseball](https://github.com/jldbc/pybaseball) and Baseball Savant.
 
 ## Datasets
 
-| # | Dataset | Description | Status |
-|---|---------|-------------|--------|
-| 1 | [japanese-mlb-players-statcast](./japanese-mlb-players-statcast/) | Japanese MLB Players Statcast Data (2015-2025) | In Progress |
-| 2 | mlb-bat-tracking | MLB Bat Tracking Leaderboard (2024-2025) | Planned |
-| 3 | mlb-pitcher-arsenal-evolution | MLB Pitcher Arsenal Evolution (2020-2025) | Planned |
-| 4 | mlb-statcast-2024-2025 | MLB Statcast Full Season Data (2024-2025) | Planned |
+| # | Dataset | Description | Status | Kaggle |
+|---|---------|-------------|--------|--------|
+| 1 | [japanese-mlb-players-statcast](./japanese-mlb-players-statcast/) | Japanese MLB Players Statcast Data (2015-2025) | ✅ Published | [View](https://www.kaggle.com/datasets/yasunorim/japan-mlb-pitchers-batters-statcast) |
+| 2 | [mlb-bat-tracking](./mlb-bat-tracking/) | MLB Bat Tracking Leaderboard (2024-2025) | ✅ Published | [View](https://www.kaggle.com/datasets/yasunorim/mlb-bat-tracking-2024-2025) |
+| 3 | mlb-pitcher-arsenal-evolution | MLB Pitcher Arsenal Evolution (2020-2025) | 📋 Planned | - |
+| 4 | mlb-statcast-2024-2025 | MLB Statcast Full Season Data (2024-2025) | 📋 Planned | - |
 
 ## Workflow
 

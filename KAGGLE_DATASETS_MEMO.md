@@ -113,12 +113,14 @@
 - **ローカルCSVは不要**（GitHubとKaggleにあれば十分。必要時は`git pull`で復元可能）
 
 ### 2. MLB Bat Tracking Leaderboard (2024-2025)【低作業量】
-- **フォルダ**: `mlb-bat-tracking/`（未作成）
-- **ステータス**: 企画段階
+- **フォルダ**: `mlb-bat-tracking/`
+- **ステータス**: **Kaggle公開済み**（2026-02-09）。https://www.kaggle.com/datasets/yasunorim/mlb-bat-tracking-2024-2025
+- **データ量**: 452打者（226/season）、19カラム、107KB
 - **期待upvotes**: 5-15（Bronze）
 - **内容**: 2024年新機能のバットトラッキングデータ（bat_speed, swing_length等）
-- **pybaseball関数**: `statcast_batter_bat_tracking()`
+- **データソース**: Baseball Savant Bat Tracking Leaderboard（CSVダウンロード）
 - **特徴**: Kaggleにゼロのデータ。最新機能で話題性◎
+- **注意**: pybaseballには未実装（2.2.7時点）。Baseball Savantから直接取得
 
 ### 3. MLB Pitcher Arsenal Evolution (2020-2025)【中作業量】
 - **フォルダ**: `mlb-pitcher-arsenal-evolution/`（未作成）
