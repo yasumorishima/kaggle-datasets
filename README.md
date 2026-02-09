@@ -2,14 +2,43 @@
 
 Baseball-themed datasets published on Kaggle, generated with [pybaseball](https://github.com/jldbc/pybaseball) and Baseball Savant.
 
-## Datasets
+## Published Datasets (3)
 
-| # | Dataset | Description | Status | Kaggle |
-|---|---------|-------------|--------|--------|
-| 1 | [japanese-mlb-players-statcast](./japanese-mlb-players-statcast/) | Japanese MLB Players Statcast Data (2015-2025) | ✅ Published | [View](https://www.kaggle.com/datasets/yasunorim/japan-mlb-pitchers-batters-statcast) |
-| 2 | [mlb-bat-tracking](./mlb-bat-tracking/) | MLB Bat Tracking Leaderboard (2024-2025) | ✅ Published | [View](https://www.kaggle.com/datasets/yasunorim/mlb-bat-tracking-2024-2025) |
-| 3 | mlb-pitcher-arsenal-evolution | MLB Pitcher Arsenal Evolution (2020-2025) | 📋 Planned | - |
-| 4 | mlb-statcast-2024-2025 | MLB Statcast Full Season Data (2024-2025) | 📋 Planned | - |
+### 1. [Japanese MLB Players Statcast (2015-2025)](https://www.kaggle.com/datasets/yasunorim/japan-mlb-pitchers-batters-statcast)
+
+Comprehensive Statcast data for 34 Japanese MLB players across 10+ seasons.
+
+- **Pitchers:** 25 players, 118,226 pitches (2015-2025)
+- **Batters:** 10 players, 56,362 batted balls (2015-2025)
+- **Columns:** 238 metrics (pitch velocities, spin rates, exit velocities, launch angles, xwOBA, etc.)
+- **Size:** 75.5 MB
+- **DOI:** `10.34740/kaggle/dsv/10697439`
+- **Article:** [Zenn](https://zenn.dev/yasumorishima/articles/kaggle-dataset-japanese-mlb-statcast)
+
+### 2. [MLB Pitcher Arsenal Evolution (2020-2025)](https://www.kaggle.com/datasets/yasunorim/mlb-pitcher-arsenal-2020-2025)
+
+Seasonal arsenal composition and performance metrics for MLB pitchers (2020-2025).
+
+- **Data:** 4,253 pitcher-seasons (2020-2025)
+- **Columns:** 111 metrics (pitch type usage %, velocity, movement, whiff rate, xwOBA, etc.)
+- **Size:** 1.14 MB
+- **DOI:** `10.34740/kaggle/dsv/10704532`
+- **Article:** [Zenn](https://zenn.dev/yasumorishima/articles/mlb-pitcher-arsenal-dataset-2020-2025)
+
+### 3. [MLB Bat Tracking (2024-2025)](https://www.kaggle.com/datasets/yasunorim/mlb-bat-tracking-2024-2025)
+
+MLB bat tracking leaderboard data from Baseball Savant (2024-2025).
+
+- **Data:** 452 batters (226 per season)
+- **Columns:** 19 swing metrics (bat speed, squared-up rate, blasts, swords, etc.)
+- **Size:** 46 KB
+- **DOI:** `10.34740/kaggle/dsv/10699103`
+
+## Planned Datasets (1)
+
+| # | Dataset | Description | Status |
+|---|---------|-------------|--------|
+| 4 | mlb-statcast-2024-2025 | MLB Statcast Full Season Data (2024-2025) | 📋 Planned |
 
 ## Workflow
 
