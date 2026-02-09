@@ -41,8 +41,8 @@ Seasonal arsenal composition and performance metrics for MLB pitchers (2020-2025
 
 Pitch-by-pitch Statcast data with Bat Tracking metrics (bat speed, swing length, swing path tilt).
 
-- **Status:** 🚧 Testing data collection
-- **Notebook:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/yasumorishima/kaggle-datasets/blob/main/dataset4_statcast_bat_tracking/generate_test.ipynb)
+- **Status:** 🚧 Generating dataset (~2.4GB, ~1.4M rows)
+- **Notebook:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/yasumorishima/kaggle-datasets/blob/main/dataset4_statcast_bat_tracking/generate.ipynb)
 
 ## Workflow
 
