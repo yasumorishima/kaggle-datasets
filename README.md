@@ -35,11 +35,14 @@ Seasonal arsenal composition and performance metrics for MLB pitchers (2020-2025
 - **DOI:** `10.34740/kaggle/dsv/10704532`
 - **Article:** [Zenn](https://zenn.dev/yasumorishima/articles/mlb-pitcher-arsenal-dataset-2020-2025)
 
-## Planned Datasets (1)
+## In Progress (1)
 
-| # | Dataset | Description | Status |
-|---|---------|-------------|--------|
-| 4 | mlb-statcast-2024-2025 | MLB Statcast Full Season Data (2024-2025) | 📋 Planned |
+### 4. MLB Statcast + Bat Tracking (2024-2025)
+
+Pitch-by-pitch Statcast data with Bat Tracking metrics (bat speed, swing length, swing path tilt).
+
+- **Status:** 🚧 Testing data collection
+- **Notebook:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/yasumorishima/kaggle-datasets/blob/main/dataset4_statcast_bat_tracking/generate_test.ipynb)
 
 ## Workflow
 
