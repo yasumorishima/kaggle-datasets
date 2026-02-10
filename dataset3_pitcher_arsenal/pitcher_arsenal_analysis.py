@@ -42,9 +42,6 @@ print(f"Pitchers: {df['player_id'].nunique():,}")
 print(f"Seasons: {sorted(df['season'].unique())}")
 print(f"\nColumns: {len(df.columns)}")
 
-# View first 5 rows
-df.head()
-
 # Column list
 print("\nAll columns:")
 for i, col in enumerate(df.columns, 1):
