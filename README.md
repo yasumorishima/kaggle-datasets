@@ -15,7 +15,7 @@ Comprehensive Statcast data for 34 Japanese MLB players across 10+ seasons.
 - **DOI:** `10.34740/kaggle/dsv/10697439`
 - **Article:** [Zenn](https://zenn.dev/yasumorishima/articles/kaggle-dataset-japanese-mlb-statcast)
 
-### 2. [MLB Bat Tracking (2024-2025)](https://www.kaggle.com/datasets/yasunorim/mlb-bat-tracking-2024-2025)
+### 2. [MLB Bat Tracking (2024-2025)](https://www.kaggle.com/datasets/yasunorim/mlb-bat-tracking-2024-2025) 🥉
 
 MLB bat tracking leaderboard data from Baseball Savant (2024-2025).
 
