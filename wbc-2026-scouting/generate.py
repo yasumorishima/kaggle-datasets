@@ -166,17 +166,14 @@ def parse_roster(data_dir: pathlib.Path) -> pd.DataFrame:
             team = translate_team(parts[2].strip()) if len(parts) > 2 else ""
             on_40man = parts[3].strip() if len(parts) > 3 else ""
             if " / " in name:
-                name_ja, name_en = name.split(" / ", 1)
+                _, name_en = name.split(" / ", 1)
             elif "\uff08" in name:
                 name_en = re.sub(r"\uff08.+?\uff09", "", name).strip()
-                name_ja = ""
             else:
                 name_en = name
-                name_ja = ""
             role = "pitcher" if pos in ("RHP", "LHP") else "batter"
             rows.append({
                 "name": name_en,
-                "name_ja": name_ja,
                 "country": current_country,
                 "pool": current_pool,
                 "position": pos,

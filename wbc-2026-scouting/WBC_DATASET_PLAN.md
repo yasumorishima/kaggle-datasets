@@ -47,7 +47,7 @@ All data reflects MLB regular season performance.
 
 ### rosters.csv
 
-`name`, `name_ja`, `country`, `pool`, `position`, `team`, `on_40_man`, `role`
+`name`, `country`, `pool`, `position`, `team`, `on_40_man`, `role`
 
 ---
 
