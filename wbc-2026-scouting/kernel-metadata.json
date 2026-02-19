@@ -1,0 +1,13 @@
+{
+  "id": "yasunorim/wbc-2026-scouting-eda",
+  "title": "WBC 2026 Scouting EDA - Statcast Analysis",
+  "code_file": "wbc_2026_eda.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "false",
+  "enable_gpu": "false",
+  "enable_internet": "false",
+  "dataset_sources": ["yasunorim/wbc-2026-scouting"],
+  "competition_sources": [],
+  "kernel_sources": []
+}
