@@ -1,0 +1,13 @@
+{
+  "id": "yasunorim/wbc-2026-spraychart-baseball-field-viz",
+  "title": "WBC 2026 Spray Charts with baseball-field-viz",
+  "code_file": "wbc_spraychart.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "false",
+  "enable_gpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": ["yasunorim/wbc-2026-scouting"],
+  "competition_sources": [],
+  "kernel_sources": []
+}
