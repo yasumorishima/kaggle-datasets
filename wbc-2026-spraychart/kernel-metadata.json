@@ -1,5 +1,5 @@
 {
-  "id": "yasunorim/wbc-2026-spray-charts-with-baseball-field-viz",
+  "id": "yasunorim/mlb-statcast-spray-charts-for-wbc-2026-players",
   "title": "MLB Statcast Spray Charts for WBC 2026 Players",
   "code_file": "wbc_spraychart.ipynb",
   "language": "python",
