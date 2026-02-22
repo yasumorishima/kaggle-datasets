@@ -1,6 +1,6 @@
 {
   "id": "yasunorim/wbc-2026-spray-charts-with-baseball-field-viz",
-  "title": "MLB Spray Charts for WBC 2026 Roster Players — baseball-field-viz",
+  "title": "MLB Statcast Spray Charts for WBC 2026 Players",
   "code_file": "wbc_spraychart.ipynb",
   "language": "python",
   "kernel_type": "notebook",
