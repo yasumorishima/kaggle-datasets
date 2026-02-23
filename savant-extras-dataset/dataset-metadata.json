@@ -1,0 +1,15 @@
+{
+  "id": "yasunorim/baseball-savant-leaderboards-2024",
+  "title": "Baseball Savant Leaderboards 2024",
+  "subtitle": "15 Baseball Savant leaderboards as clean CSV files, collected with savant-extras",
+  "description": "# Baseball Savant Leaderboards 2024\n\n15 Baseball Savant leaderboards for the **2024 MLB season**, collected using the [savant-extras](https://pypi.org/project/savant-extras/) Python package.\n\n## Files (15 CSVs)\n\n| File | Category | Rows | Description |\n|---|---|---|---|\n| `bat_tracking_2024.csv` | Batting | 503 | Bat speed, attack angle, swing tilt |\n| `batted_ball_2024.csv` | Batting | 251 | GB/FB/LD rates, pull/oppo splits |\n| `home_runs_2024.csv` | Batting | 565 | HR distance, exit velo, xHR, no-doubters |\n| `year_to_year_2024.csv` | Batting | 175 | xwOBA year-over-year changes |\n| `pitch_tempo_2024.csv` | Pitching | 378 | Median seconds between pitches |\n| `pitch_movement_2024.csv` | Pitching | 418 | Horizontal and vertical break by pitch type |\n| `pitcher_arm_angle_2024.csv` | Pitching | 287 | Release point angles |\n| `running_game_2024.csv` | Pitching | 504 | Pitcher running game control |\n| `timer_infractions_2024.csv` | Pitching | 30 | Pitch clock violations |\n| `arm_strength_2024.csv` | Fielding | 388 | Fielder throw speed by position |\n| `catcher_blocking_2024.csv` | Catching | 65 | Blocks above average |\n| `catcher_throwing_2024.csv` | Catching | 63 | Pop time, CS rate, arm strength |\n| `catcher_stance_2024.csv` | Catching | 6 | One-knee vs traditional stance impact |\n| `baserunning_2024.csv` | Baserunning | 252 | Total baserunning run value |\n| `basestealing_2024.csv` | Baserunning | 423 | Stolen base run value, lead distances |\n\n> **Note**: Swing & Take is excluded because Baseball Savant's CSV endpoint currently returns empty data for all years.\n\n## How This Data Was Collected\n\nAll data was fetched from [Baseball Savant](https://baseballsavant.mlb.com/) using **[savant-extras](https://github.com/yasumorishima/savant-extras)** — a Python package that provides 33 functions covering 16 leaderboards that [pybaseball](https://github.com/jldbc/pybaseball) does not support.\n\n```python\npip install savant-extras\n\nfrom savant_extras import bat_tracking, pitch_tempo, home_runs  # etc.\ndf = bat_tracking(\"2024-04-01\", \"2024-09-30\")\n```\n\n## Links\n\n- **savant-extras on PyPI**: [pypi.org/project/savant-extras](https://pypi.org/project/savant-extras/)\n- **Source code**: [github.com/yasumorishima/savant-extras](https://github.com/yasumorishima/savant-extras)\n\n## Data Source\n\nData from [Baseball Savant](https://baseballsavant.mlb.com/) (MLB Advanced Media). 2024 regular season.\n",
+  "keywords": [
+    "subject, health and fitness, exercise, sports, baseball",
+    "geography and places, north america, united states"
+  ],
+  "licenses": [
+    {
+      "name": "CC0-1.0"
+    }
+  ]
+}

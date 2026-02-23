@@ -1,0 +1,13 @@
+{
+  "id": "yasunorim/savant-extras-all-baseball-savant-leaderboards",
+  "title": "savant-extras - All Baseball Savant Leaderboards",
+  "code_file": "savant-extras-showcase.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "true",
+  "enable_gpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": []
+}
