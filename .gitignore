@@ -11,3 +11,9 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# Personal memo/session notes
+KAGGLE_DATASETS_MEMO.md
+*_SESSION_NOTE.md
+*_DEV_NOTE.md
+NEXT_SESSION.md
