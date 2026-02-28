@@ -35,9 +35,19 @@ Seasonal arsenal composition and performance metrics for MLB pitchers (2020-2025
 - **DOI:** `10.34740/kaggle/dsv/10704532`
 - **Article:** [Zenn](https://zenn.dev/yasumorishima/articles/mlb-pitcher-arsenal-dataset-2020-2025)
 
+### 4. [WBC 2026 Scouting - Statcast Data](https://www.kaggle.com/datasets/yasunorim/wbc-2026-scouting)
+
+Pitch-by-pitch Statcast data for WBC 2026 roster players, 20 countries.
+
+- **Batters:** 338,811 pitches, 18 countries
+- **Pitchers:** 220,385 pitches, 14 countries
+- **Summary:** 109 batters / 90 pitchers (per-player stats)
+- **Rosters:** 308 MLB-affiliated players across 20 countries
+- **Auto-update:** GitHub Actions ([`update-wbc-dataset.yml`](.github/workflows/update-wbc-dataset.yml)) — triggers on `workflow_dispatch`
+
 ## In Progress (1)
 
-### 4. MLB Statcast + Bat Tracking (2024-2025)
+### 5. MLB Statcast + Bat Tracking (2024-2025)
 
 Pitch-by-pitch Statcast data with Bat Tracking metrics (bat speed, swing length, swing path tilt).
 
@@ -45,6 +55,16 @@ Pitch-by-pitch Statcast data with Bat Tracking metrics (bat speed, swing length,
 - **Notebook:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/yasumorishima/kaggle-datasets/blob/main/dataset4_statcast_bat_tracking/generate.ipynb)
 
 ## Workflow
+
+### WBC 2026 Scouting (automated)
+
+Actions → `Update WBC 2026 Kaggle Dataset` → **Run workflow**
+
+Internally: checkout `wbc-scouting` → run `generate.py` → clean `rosters.csv` → `kaggle datasets version`
+
+Required secrets: `KAGGLE_USERNAME`, `KAGGLE_KEY`
+
+### Other datasets (manual)
 
 1. Run `generate.ipynb` in Google Colab to generate CSV
 2. Download CSV to local dataset folder
