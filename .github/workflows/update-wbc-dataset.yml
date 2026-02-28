@@ -1,0 +1,70 @@
+name: Update WBC 2026 Kaggle Dataset
+
+on:
+  workflow_dispatch:
+    inputs:
+      message:
+        description: 'Version message for Kaggle (e.g. "Roster update Mar 1")'
+        required: false
+        default: 'Data refresh'
+
+jobs:
+  update-dataset:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout kaggle-datasets
+        uses: actions/checkout@v4
+
+      - name: Checkout wbc-scouting (data source)
+        uses: actions/checkout@v4
+        with:
+          repository: yasumorishima/wbc-scouting
+          path: wbc-scouting
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install pandas numpy kaggle
+
+      - name: Generate dataset CSVs
+        run: |
+          python wbc-2026-scouting/generate.py \
+            --wbc-dir wbc-scouting \
+            --out-dir wbc-2026-scouting
+
+      - name: Clean rosters.csv (remove withdrawn players, strip markers)
+        run: |
+          python - << 'EOF'
+          import pandas as pd, re
+
+          path = "wbc-2026-scouting/rosters.csv"
+          df = pd.read_csv(path)
+          before = len(df)
+
+          # Remove rows for withdrawn players (marked ★辞退 in source CSV)
+          df = df[~df["name"].str.contains("★辞退", na=False)]
+
+          # Strip ★代替 marker from replacement player names
+          df["name"] = df["name"].str.replace(r"\s*★代替", "", regex=True).str.strip()
+
+          # Fix any untranslated Japanese team names for replacement players
+          japanese_team_fixes = {
+              "ロサンゼルス・ドジャース傘下": "Los Angeles Dodgers (org.)",
+          }
+          df["team"] = df["team"].replace(japanese_team_fixes)
+
+          df.to_csv(path, index=False)
+          print(f"rosters.csv: {before} → {len(df)} players (removed {before - len(df)} withdrawn)")
+          EOF
+
+      - name: Upload to Kaggle
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          cd wbc-2026-scouting
+          kaggle datasets version -p . -m "${{ github.event.inputs.message }}"
