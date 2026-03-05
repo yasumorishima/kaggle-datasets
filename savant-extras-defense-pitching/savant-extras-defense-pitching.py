@@ -147,7 +147,7 @@ if len(df_oaa[df_oaa[year_col] == 2024]) > 0 and len(oaa25) > 0:
             fig, ax = plt.subplots(figsize=(8, 7))
             ax.scatter(merged["outs_above_average_2024"], merged["outs_above_average_2025"],
                        alpha=0.6, s=30, color="steelblue")
-            lim = max(abs(merged[["outs_above_average_2024", "outs_above_average_2025"]]).max().max()) + 3
+            lim = abs(merged[["outs_above_average_2024", "outs_above_average_2025"]]).max().max() + 3
             ax.plot([-lim, lim], [-lim, lim], "--", color="gray", alpha=0.6)
             ax.axhline(0, color="gray", lw=0.5)
             ax.axvline(0, color="gray", lw=0.5)
