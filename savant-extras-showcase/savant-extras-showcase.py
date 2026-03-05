@@ -262,15 +262,18 @@ df_st.head()
 
 # %%
 st25 = df_st[df_st["year"] == YEAR]
-fig, ax = plt.subplots(figsize=(10, 6))
-top_st = st25.nlargest(TOP_N, "runs_all")
-ax.barh(top_st["last_name, first_name"], top_st["runs_all"],
-        color=sns.color_palette("viridis", TOP_N))
-ax.set_xlabel("Total Run Value (Swing + Take)", fontsize=14)
-ax.set_title(f"Top {TOP_N} Swing & Take Run Value — {YEAR}", fontsize=16)
-ax.invert_yaxis()
-plt.tight_layout()
-plt.show()
+if len(st25) > 0 and "runs_all" in st25.columns:
+    fig, ax = plt.subplots(figsize=(10, 6))
+    top_st = st25.nlargest(TOP_N, "runs_all")
+    ax.barh(top_st["last_name, first_name"], top_st["runs_all"],
+            color=sns.color_palette("viridis", TOP_N))
+    ax.set_xlabel("Total Run Value (Swing + Take)", fontsize=14)
+    ax.set_title(f"Top {TOP_N} Swing & Take Run Value — {YEAR}", fontsize=16)
+    ax.invert_yaxis()
+    plt.tight_layout()
+    plt.show()
+else:
+    print("swing_take: no data available (known issue with Baseball Savant API)")
 
 # %% [markdown]
 # ---
@@ -509,32 +512,36 @@ if delta_col in df_yty.columns:
 # %%
 from savant_extras import park_factors_range
 
-df_pf = park_factors_range(YEARS[0], YEARS[-1])
-print(f"Park Factors: {len(df_pf)} team-seasons")
-df_pf.head()
+try:
+    df_pf = park_factors_range(YEARS[0], YEARS[-1])
+    print(f"Park Factors: {len(df_pf)} team-seasons")
+    df_pf.head()
+except Exception as e:
+    print(f"park_factors: skipped ({e})")
+    df_pf = pd.DataFrame()
 
 # %%
-fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-
-pf25 = df_pf[df_pf["season"] == YEAR].sort_values("pf_5yr", ascending=True)
-colors = ["#e74c3c" if v > 100 else "#3498db" for v in pf25["pf_5yr"]]
-axes[0].barh(pf25["team"], pf25["pf_5yr"], color=colors)
-axes[0].axvline(100, color="gray", lw=1.5, ls="--")
-axes[0].set_xlabel("5-Year Park Factor (runs)", fontsize=14)
-axes[0].set_title(f"Park Factors — {YEAR}", fontsize=16)
-
-axes[1].scatter(pf25["pf_5yr"], pf25["pf_hr"], alpha=0.7, s=50, color="steelblue")
-for _, row in pf25.iterrows():
-    axes[1].annotate(row["team"], (row["pf_5yr"], row["pf_hr"]),
-                     fontsize=7, ha="center", va="bottom")
-axes[1].axhline(100, color="gray", lw=0.8, ls="--")
-axes[1].axvline(100, color="gray", lw=0.8, ls="--")
-axes[1].set_xlabel("5-Year Park Factor (runs)", fontsize=14)
-axes[1].set_ylabel("HR Park Factor", fontsize=14)
-axes[1].set_title(f"Runs vs HR Park Factor — {YEAR}", fontsize=16)
-
-plt.tight_layout()
-plt.show()
+if not df_pf.empty:
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    pf25 = df_pf[df_pf["season"] == YEAR].sort_values("pf_5yr", ascending=True)
+    colors = ["#e74c3c" if v > 100 else "#3498db" for v in pf25["pf_5yr"]]
+    axes[0].barh(pf25["team"], pf25["pf_5yr"], color=colors)
+    axes[0].axvline(100, color="gray", lw=1.5, ls="--")
+    axes[0].set_xlabel("5-Year Park Factor (runs)", fontsize=14)
+    axes[0].set_title(f"Park Factors — {YEAR}", fontsize=16)
+    axes[1].scatter(pf25["pf_5yr"], pf25["pf_hr"], alpha=0.7, s=50, color="steelblue")
+    for _, row in pf25.iterrows():
+        axes[1].annotate(row["team"], (row["pf_5yr"], row["pf_hr"]),
+                         fontsize=7, ha="center", va="bottom")
+    axes[1].axhline(100, color="gray", lw=0.8, ls="--")
+    axes[1].axvline(100, color="gray", lw=0.8, ls="--")
+    axes[1].set_xlabel("5-Year Park Factor (runs)", fontsize=14)
+    axes[1].set_ylabel("HR Park Factor", fontsize=14)
+    axes[1].set_title(f"Runs vs HR Park Factor — {YEAR}", fontsize=16)
+    plt.tight_layout()
+    plt.show()
+else:
+    print("Park Factors: skipped (FanGraphs may block cloud IPs)")
 
 # %% [markdown]
 # ---
@@ -619,40 +626,44 @@ from savant_extras import pitcher_quality
 
 pq_frames = []
 for y in YEARS:
-    df_tmp = pitcher_quality(y)
-    df_tmp = coerce_numeric(df_tmp)
-    if "season" not in df_tmp.columns:
-        df_tmp["season"] = y
-    pq_frames.append(df_tmp)
+    try:
+        df_tmp = pitcher_quality(y)
+        df_tmp = coerce_numeric(df_tmp)
+        if "season" not in df_tmp.columns:
+            df_tmp["season"] = y
+        pq_frames.append(df_tmp)
+        print(f"pitcher_quality {y}: {len(df_tmp)} pitchers")
+    except Exception as e:
+        print(f"pitcher_quality {y}: skipped ({e})")
     time.sleep(1.5)
-df_pq = pd.concat(pq_frames, ignore_index=True)
-print(f"Pitcher Quality: {len(df_pq)} pitcher-seasons")
+df_pq = pd.concat(pq_frames, ignore_index=True) if pq_frames else pd.DataFrame()
+print(f"Pitcher Quality total: {len(df_pq)} pitcher-seasons")
 df_pq.head()
 
 # %%
-fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-
-pq25 = df_pq[df_pq["season"] == YEAR]
-if "pitching_plus" in pq25.columns:
-    top_pq = pq25.nlargest(TOP_N, "pitching_plus")
-    axes[0].barh(top_pq["name"], top_pq["pitching_plus"],
-                 color=sns.color_palette("flare", TOP_N))
-    axes[0].axvline(100, color="gray", lw=1.5, ls="--")
-    axes[0].set_xlabel("Pitching+ (100 = MLB avg)", fontsize=14)
-    axes[0].set_title(f"Top {TOP_N} Pitching+ — {YEAR}", fontsize=16)
-    axes[0].invert_yaxis()
-
-if "stuff_plus" in pq25.columns and "location_plus" in pq25.columns:
-    axes[1].scatter(pq25["stuff_plus"], pq25["location_plus"],
-                    alpha=0.5, s=20, color="purple")
-    axes[1].axhline(100, color="gray", lw=0.8, ls="--")
-    axes[1].axvline(100, color="gray", lw=0.8, ls="--")
-    axes[1].set_xlabel("Stuff+ (100 = avg)", fontsize=14)
-    axes[1].set_ylabel("Location+ (100 = avg)", fontsize=14)
-    axes[1].set_title(f"Stuff+ vs Location+ — {YEAR}", fontsize=16)
-
-plt.tight_layout()
-plt.show()
+if not df_pq.empty:
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    pq25 = df_pq[df_pq["season"] == YEAR]
+    if "pitching_plus" in pq25.columns:
+        top_pq = pq25.nlargest(TOP_N, "pitching_plus")
+        axes[0].barh(top_pq["name"], top_pq["pitching_plus"],
+                     color=sns.color_palette("flare", TOP_N))
+        axes[0].axvline(100, color="gray", lw=1.5, ls="--")
+        axes[0].set_xlabel("Pitching+ (100 = MLB avg)", fontsize=14)
+        axes[0].set_title(f"Top {TOP_N} Pitching+ — {YEAR}", fontsize=16)
+        axes[0].invert_yaxis()
+    if "stuff_plus" in pq25.columns and "location_plus" in pq25.columns:
+        axes[1].scatter(pq25["stuff_plus"], pq25["location_plus"],
+                        alpha=0.5, s=20, color="purple")
+        axes[1].axhline(100, color="gray", lw=0.8, ls="--")
+        axes[1].axvline(100, color="gray", lw=0.8, ls="--")
+        axes[1].set_xlabel("Stuff+ (100 = avg)", fontsize=14)
+        axes[1].set_ylabel("Location+ (100 = avg)", fontsize=14)
+        axes[1].set_title(f"Stuff+ vs Location+ — {YEAR}", fontsize=16)
+    plt.tight_layout()
+    plt.show()
+else:
+    print("Pitcher Quality: skipped (FanGraphs may block cloud IPs)")
 
 # %% [markdown]
 # ---
