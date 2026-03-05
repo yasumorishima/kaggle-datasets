@@ -1,7 +1,7 @@
 {
-  "id": "yasunorim/savant-extras-all-baseball-savant-leaderboards",
-  "title": "savant-extras - All Baseball Savant Leaderboards",
-  "code_file": "savant-extras-showcase.ipynb",
+  "id": "yasunorim/savant-extras-defense-pitching-quality",
+  "title": "Defense & Pitching Quality: OAA, Outfield Jump, Park Factors, Stuff+",
+  "code_file": "savant-extras-defense-pitching.ipynb",
   "language": "python",
   "kernel_type": "notebook",
   "is_private": "false",

@@ -1,0 +1,83 @@
+name: Push Notebook to Kaggle
+
+on:
+  workflow_dispatch:
+    inputs:
+      notebook_dir:
+        description: 'Notebook directory under kaggle-datasets/ (e.g. savant-extras-showcase)'
+        required: true
+        type: string
+      kernel_id:
+        description: 'Kaggle kernel ID for polling (e.g. yasunorim/savant-extras-all-baseball-savant-leaderboards). Leave empty to skip.'
+        required: false
+        type: string
+
+jobs:
+  push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout kaggle-datasets
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: pip install jupytext nbformat kaggle
+
+      - name: Convert .py to .ipynb (if needed)
+        run: |
+          DIR="${{ inputs.notebook_dir }}"
+          META="$DIR/kernel-metadata.json"
+          if [ ! -f "$META" ]; then
+            echo "No kernel-metadata.json found in $DIR — aborting."
+            exit 1
+          fi
+          CODE_FILE=$(python3 -c "import json; print(json.load(open('$META'))['code_file'])")
+          echo "Expected code_file: $CODE_FILE"
+          if [ -f "$DIR/$CODE_FILE" ]; then
+            echo ".ipynb already exists, skipping conversion."
+          else
+            PY_FILE=$(echo "$CODE_FILE" | sed 's/\.ipynb$/.py/')
+            if [ -f "$DIR/$PY_FILE" ]; then
+              echo "Converting $PY_FILE -> $CODE_FILE"
+              jupytext --to notebook "$DIR/$PY_FILE" --output "$DIR/$CODE_FILE"
+              echo "Conversion done."
+            else
+              echo "Neither $CODE_FILE nor $PY_FILE found in $DIR — aborting."
+              exit 1
+            fi
+          fi
+
+      - name: Push notebook to Kaggle
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: kaggle kernels push -p "${{ inputs.notebook_dir }}"
+
+      - name: Poll until complete (max 60 x 30s = 30min)
+        if: ${{ inputs.kernel_id != '' }}
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          KERNEL_ID="${{ inputs.kernel_id }}"
+          for i in $(seq 1 60); do
+            RAW=$(kaggle kernels status "$KERNEL_ID" 2>&1) || true
+            STATUS=$(echo "$RAW" | sed 's/.*has status "\([^"]*\)".*/\1/')
+            echo "Attempt $i/60: $STATUS"
+            if echo "$STATUS" | grep -qiE "COMPLETE"; then
+              echo "Kernel completed successfully."
+              exit 0
+            fi
+            if echo "$STATUS" | grep -qiE "ERROR|CANCEL"; then
+              echo "Kernel failed with status: $STATUS"
+              exit 1
+            fi
+            sleep 30
+          done
+          echo "Timed out after 30 min."
+          exit 1
