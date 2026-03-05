@@ -1,0 +1,42 @@
+name: Update Kaggle Dataset
+
+on:
+  workflow_dispatch:
+    inputs:
+      dataset_dir:
+        description: 'Dataset directory under kaggle-datasets/ (e.g. savant-extras-dataset)'
+        required: true
+        type: string
+      version_notes:
+        description: 'Version notes (e.g. "Add 2025 data")'
+        required: true
+        type: string
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout kaggle-datasets
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install kaggle
+        run: pip install kaggle
+
+      - name: Update dataset version
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+        run: |
+          DIR="${{ inputs.dataset_dir }}"
+          if [ ! -f "$DIR/dataset-metadata.json" ]; then
+            echo "No dataset-metadata.json found in $DIR — aborting."
+            exit 1
+          fi
+          kaggle datasets version -p "$DIR" -m "${{ inputs.version_notes }}" --dir-mode zip
+          echo "Dataset updated successfully."
