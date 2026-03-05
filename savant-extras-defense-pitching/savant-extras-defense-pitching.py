@@ -1,19 +1,18 @@
 # %% [markdown]
 # # Defense & Pitching Quality Analysis with savant-extras
 #
-# **[savant-extras](https://github.com/yasumorishima/savant-extras)** v0.4.1 added four new leaderboards
-# that go beyond Baseball Savant — including FanGraphs-sourced data not available anywhere else in Python.
+# This notebook analyzes defense and pitching quality metrics using
+# **[savant-extras](https://github.com/yasumorishima/savant-extras)** v0.4.3 and **[pybaseball](https://github.com/jldbc/pybaseball)**:
 #
-# This notebook analyzes:
-# - **Outs Above Average (OAA)** — who saves the most outs on defense?
-# - **Outfield Jump** — first-step reaction and routing efficiency
-# - **Park Factors** — which parks favor hitters vs pitchers?
-# - **Pitcher Quality (Stuff+ / Location+ / Pitching+)** — model-based pitcher ratings from FanGraphs
+# - **Outs Above Average (OAA)** — who saves the most outs on defense? (via pybaseball)
+# - **Outfield Jump** — first-step reaction and routing efficiency (via pybaseball)
+# - **Park Factors** — which parks favor hitters vs pitchers? (via savant-extras)
+# - **Pitcher Quality (Stuff+ / Location+ / Pitching+)** — model-based pitcher ratings (via pybaseball)
 #
 # Data: 2024–2025 seasons via the [Baseball Savant Leaderboards Dataset](https://www.kaggle.com/datasets/yasunorim/baseball-savant-leaderboards-2024).
 #
 # ```
-# pip install savant-extras
+# pip install savant-extras pybaseball
 # ```
 
 # %% [markdown]

@@ -35,7 +35,15 @@ Seasonal arsenal composition and performance metrics for MLB pitchers (2020-2025
 - **DOI:** `10.34740/kaggle/dsv/10704532`
 - **Article:** [Zenn](https://zenn.dev/yasumorishima/articles/mlb-pitcher-arsenal-dataset-2020-2025)
 
-### 4. [WBC 2026 Scouting - Statcast Data](https://www.kaggle.com/datasets/yasunorim/wbc-2026-scouting)
+### 4. [Baseball Savant Leaderboards (2024-2025)](https://www.kaggle.com/datasets/yasunorim/baseball-savant-leaderboards-2024)
+
+20 Baseball Savant & FanGraphs leaderboards as clean CSV files.
+
+- **Files:** 20 CSVs — batting, pitching, fielding, catching, baserunning, park factors
+- **Sources:** savant-extras v0.4.3 (17 leaderboards) + pybaseball (OAA, Outfield Jump, Pitcher Quality)
+- **Notebooks:** [Showcase](https://www.kaggle.com/code/yasunorim/savant-extras-showcase) · [Defense & Pitching Quality](https://www.kaggle.com/code/yasunorim/savant-extras-defense-pitching-quality)
+
+### 5. [WBC 2026 Scouting - Statcast Data](https://www.kaggle.com/datasets/yasunorim/wbc-2026-scouting)
 
 Pitch-by-pitch Statcast data for WBC 2026 roster players, 20 countries.
 
