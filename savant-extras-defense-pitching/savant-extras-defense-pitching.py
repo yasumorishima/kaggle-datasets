@@ -274,37 +274,41 @@ print(f"Park Factors: {len(df_pf)} team-seasons")
 df_pf.head()
 
 # %%
-pf25 = df_pf[df_pf["season"] == YEAR].copy()
+if len(df_pf) == 0 or "season" not in df_pf.columns:
+    print("Park Factors: no data available, skipping visualizations")
+    pf25 = pd.DataFrame()
+else:
+    pf25 = df_pf[df_pf["season"] == YEAR].copy()
 
-fig, axes = plt.subplots(1, 2, figsize=(16, 8))
+    fig, axes = plt.subplots(1, 2, figsize=(16, 8))
 
-# Full park factor bar — sorted
-pf_sorted = pf25.sort_values("pf_5yr")
-bar_colors = ["#e74c3c" if v > 100 else "#3498db" for v in pf_sorted["pf_5yr"]]
-axes[0].barh(pf_sorted["team"], pf_sorted["pf_5yr"], color=bar_colors)
-axes[0].axvline(100, color="black", lw=1.5, ls="--")
-axes[0].set_xlabel("5-Year Park Factor (runs, 100=neutral)", fontsize=14)
-axes[0].set_title(f"All 30 Teams — Park Factors — {YEAR}", fontsize=16)
+    # Full park factor bar — sorted
+    pf_sorted = pf25.sort_values("pf_5yr")
+    bar_colors = ["#e74c3c" if v > 100 else "#3498db" for v in pf_sorted["pf_5yr"]]
+    axes[0].barh(pf_sorted["team"], pf_sorted["pf_5yr"], color=bar_colors)
+    axes[0].axvline(100, color="black", lw=1.5, ls="--")
+    axes[0].set_xlabel("5-Year Park Factor (runs, 100=neutral)", fontsize=14)
+    axes[0].set_title(f"All 30 Teams — Park Factors — {YEAR}", fontsize=16)
 
-# Multi-factor scatter: HR vs FIP park factor
-if "pf_hr" in pf25.columns and "pf_fip" in pf25.columns:
-    scatter_colors = ["#e74c3c" if v > 100 else "#3498db" for v in pf25["pf_5yr"]]
-    axes[1].scatter(pf25["pf_hr"], pf25["pf_fip"], c=scatter_colors, s=80, alpha=0.8, edgecolors="white", lw=0.5)
-    for _, row in pf25.iterrows():
-        axes[1].annotate(row["team"], (row["pf_hr"], row["pf_fip"]),
-                         fontsize=7.5, ha="center", va="bottom")
-    axes[1].axhline(100, color="gray", lw=0.8, ls="--")
-    axes[1].axvline(100, color="gray", lw=0.8, ls="--")
-    axes[1].set_xlabel("HR Park Factor", fontsize=14)
-    axes[1].set_ylabel("FIP Park Factor", fontsize=14)
-    axes[1].set_title(f"HR vs FIP Park Factor — {YEAR}", fontsize=16)
+    # Multi-factor scatter: HR vs FIP park factor
+    if "pf_hr" in pf25.columns and "pf_fip" in pf25.columns:
+        scatter_colors = ["#e74c3c" if v > 100 else "#3498db" for v in pf25["pf_5yr"]]
+        axes[1].scatter(pf25["pf_hr"], pf25["pf_fip"], c=scatter_colors, s=80, alpha=0.8, edgecolors="white", lw=0.5)
+        for _, row in pf25.iterrows():
+            axes[1].annotate(row["team"], (row["pf_hr"], row["pf_fip"]),
+                             fontsize=7.5, ha="center", va="bottom")
+        axes[1].axhline(100, color="gray", lw=0.8, ls="--")
+        axes[1].axvline(100, color="gray", lw=0.8, ls="--")
+        axes[1].set_xlabel("HR Park Factor", fontsize=14)
+        axes[1].set_ylabel("FIP Park Factor", fontsize=14)
+        axes[1].set_title(f"HR vs FIP Park Factor — {YEAR}", fontsize=16)
 
-plt.tight_layout()
-plt.show()
+    plt.tight_layout()
+    plt.show()
 
 # %%
 # Year-over-year change in park factors
-if len(df_pf[df_pf["season"] == 2024]) > 0:
+if len(df_pf) > 0 and "season" in df_pf.columns and len(df_pf[df_pf["season"] == 2024]) > 0:
     pf24 = df_pf[df_pf["season"] == 2024][["team", "pf_5yr", "pf_hr"]].rename(
         columns={"pf_5yr": "pf_5yr_2024", "pf_hr": "pf_hr_2024"})
     pf25_slim = pf25[["team", "pf_5yr", "pf_hr"]].rename(
