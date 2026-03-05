@@ -58,17 +58,21 @@ DATASET_DIR = "/kaggle/input/baseball-savant-leaderboards-2024"
 
 # %%
 oaa_path = os.path.join(DATASET_DIR, "outs_above_average_2024_2025.csv")
-if os.path.exists(oaa_path):
+if os.path.exists(oaa_path) and os.path.getsize(oaa_path) > 10:
     df_oaa = pd.read_csv(oaa_path)
 else:
-    from pybaseball import statcast_outs_above_average
-    frames = []
-    for y in YEARS:
-        df_tmp = statcast_outs_above_average(y, 'all')
-        df_tmp = coerce_numeric(df_tmp)
-        frames.append(df_tmp)
-        time.sleep(1)
-    df_oaa = pd.concat(frames, ignore_index=True)
+    try:
+        from pybaseball import statcast_outs_above_average
+        frames = []
+        for y in YEARS:
+            df_tmp = statcast_outs_above_average(y, 'all')
+            df_tmp = coerce_numeric(df_tmp)
+            frames.append(df_tmp)
+            time.sleep(1)
+        df_oaa = pd.concat(frames, ignore_index=True)
+    except Exception as e:
+        print(f"outs_above_average: skipped ({e})")
+        df_oaa = pd.DataFrame()
 
 print(f"OAA: {len(df_oaa)} fielder-seasons, columns: {list(df_oaa.columns[:8])}")
 df_oaa.head()
@@ -166,19 +170,23 @@ if len(df_oaa[df_oaa[year_col] == 2024]) > 0 and len(oaa25) > 0:
 
 # %%
 oj_path = os.path.join(DATASET_DIR, "outfield_jump_2024_2025.csv")
-if os.path.exists(oj_path):
+if os.path.exists(oj_path) and os.path.getsize(oj_path) > 10:
     df_oj = pd.read_csv(oj_path)
 else:
-    from pybaseball import statcast_outfielder_jump
-    frames = []
-    for y in YEARS:
-        df_tmp = statcast_outfielder_jump(y)
-        df_tmp = coerce_numeric(df_tmp)
-        if "year" not in df_tmp.columns:
-            df_tmp["year"] = y
-        frames.append(df_tmp)
-        time.sleep(1)
-    df_oj = pd.concat(frames, ignore_index=True)
+    try:
+        from pybaseball import statcast_outfielder_jump
+        frames = []
+        for y in YEARS:
+            df_tmp = statcast_outfielder_jump(y)
+            df_tmp = coerce_numeric(df_tmp)
+            if "year" not in df_tmp.columns:
+                df_tmp["year"] = y
+            frames.append(df_tmp)
+            time.sleep(1)
+        df_oj = pd.concat(frames, ignore_index=True)
+    except Exception as e:
+        print(f"outfield_jump: skipped ({e})")
+        df_oj = pd.DataFrame()
 
 df_oj = coerce_numeric(df_oj)
 print(f"Outfield Jump: {len(df_oj)} outfielder-seasons, columns: {list(df_oj.columns[:8])}")
@@ -251,11 +259,15 @@ if len(available) >= 2:
 
 # %%
 pf_path = os.path.join(DATASET_DIR, "park_factors_2024_2025.csv")
-if os.path.exists(pf_path):
+if os.path.exists(pf_path) and os.path.getsize(pf_path) > 10:
     df_pf = pd.read_csv(pf_path)
 else:
-    from savant_extras import park_factors_range
-    df_pf = park_factors_range(2024, 2025)
+    try:
+        from savant_extras import park_factors_range
+        df_pf = park_factors_range(2024, 2025)
+    except Exception as e:
+        print(f"park_factors: skipped ({e})")
+        df_pf = pd.DataFrame()
 
 df_pf = coerce_numeric(df_pf)
 print(f"Park Factors: {len(df_pf)} team-seasons")
@@ -323,23 +335,27 @@ if len(df_pf[df_pf["season"] == 2024]) > 0:
 
 # %%
 pq_path = os.path.join(DATASET_DIR, "pitcher_quality_2024_2025.csv")
-if os.path.exists(pq_path):
+if os.path.exists(pq_path) and os.path.getsize(pq_path) > 10:
     df_pq = pd.read_csv(pq_path)
 else:
-    from pybaseball import fg_pitching_data
-    _PQ_COLS = ["Name", "Team", "Age", "IP", "Stuff+", "Location+", "Pitching+"]
-    _PQ_RENAME = {"Name": "name", "Team": "team", "Age": "age", "IP": "ip",
-                  "Stuff+": "stuff_plus", "Location+": "location_plus", "Pitching+": "pitching_plus"}
-    frames = []
-    for y in YEARS:
-        df_tmp = fg_pitching_data(y, qual=0)
-        avail = [c for c in _PQ_COLS if c in df_tmp.columns]
-        df_tmp = df_tmp[avail].rename(columns=_PQ_RENAME).copy()
-        df_tmp = coerce_numeric(df_tmp)
-        df_tmp["season"] = y
-        frames.append(df_tmp)
-        time.sleep(1.5)
-    df_pq = pd.concat(frames, ignore_index=True)
+    try:
+        from pybaseball import fg_pitching_data
+        _PQ_COLS = ["Name", "Team", "Age", "IP", "Stuff+", "Location+", "Pitching+"]
+        _PQ_RENAME = {"Name": "name", "Team": "team", "Age": "age", "IP": "ip",
+                      "Stuff+": "stuff_plus", "Location+": "location_plus", "Pitching+": "pitching_plus"}
+        frames = []
+        for y in YEARS:
+            df_tmp = fg_pitching_data(y, qual=0)
+            avail = [c for c in _PQ_COLS if c in df_tmp.columns]
+            df_tmp = df_tmp[avail].rename(columns=_PQ_RENAME).copy()
+            df_tmp = coerce_numeric(df_tmp)
+            df_tmp["season"] = y
+            frames.append(df_tmp)
+            time.sleep(1.5)
+        df_pq = pd.concat(frames, ignore_index=True)
+    except Exception as e:
+        print(f"pitcher_quality: skipped ({e})")
+        df_pq = pd.DataFrame()
 
 df_pq = coerce_numeric(df_pq)
 print(f"Pitcher Quality: {len(df_pq)} pitcher-seasons")
