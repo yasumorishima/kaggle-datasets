@@ -20,7 +20,7 @@
 # ## Setup
 
 # %%
-!pip install -q savant-extras
+!pip install -q savant-extras pybaseball
 
 import pandas as pd
 import numpy as np
