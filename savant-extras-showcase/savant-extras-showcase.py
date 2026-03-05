@@ -549,9 +549,12 @@ else:
 # Defensive runs saved vs expected, with directional breakdowns.
 
 # %%
-from savant_extras import outs_above_average
+from pybaseball import statcast_outs_above_average
 
-df_oaa = fetch_years(outs_above_average, min_opp="q")
+def _oaa(year, **_):
+    return statcast_outs_above_average(year, 'all')
+
+df_oaa = fetch_years(_oaa, year_col="year")
 print(f"Outs Above Average: {len(df_oaa)} fielder-seasons")
 df_oaa.head()
 
@@ -584,9 +587,9 @@ plt.show()
 # First-step reaction and routing efficiency for outfielders (2-star plays only).
 
 # %%
-from savant_extras import outfield_jump
+from pybaseball import statcast_outfielder_jump
 
-df_oj = fetch_years(outfield_jump)
+df_oj = fetch_years(statcast_outfielder_jump, year_col="year")
 print(f"Outfield Jump: {len(df_oj)} outfielder-seasons")
 df_oj.head()
 
@@ -622,15 +625,19 @@ plt.show()
 # Model-based pitcher quality metrics. 100 = MLB average.
 
 # %%
-from savant_extras import pitcher_quality
+from pybaseball import fg_pitching_data
 
+_PQ_COLS = ["Name", "Team", "Age", "IP", "Stuff+", "Location+", "Pitching+"]
+_PQ_RENAME = {"Name": "name", "Team": "team", "Age": "age", "IP": "ip",
+              "Stuff+": "stuff_plus", "Location+": "location_plus", "Pitching+": "pitching_plus"}
 pq_frames = []
 for y in YEARS:
     try:
-        df_tmp = pitcher_quality(y)
+        df_tmp = fg_pitching_data(y, qual=0)
+        avail = [c for c in _PQ_COLS if c in df_tmp.columns]
+        df_tmp = df_tmp[avail].rename(columns=_PQ_RENAME).copy()
         df_tmp = coerce_numeric(df_tmp)
-        if "season" not in df_tmp.columns:
-            df_tmp["season"] = y
+        df_tmp["season"] = y
         pq_frames.append(df_tmp)
         print(f"pitcher_quality {y}: {len(df_tmp)} pitchers")
     except Exception as e:

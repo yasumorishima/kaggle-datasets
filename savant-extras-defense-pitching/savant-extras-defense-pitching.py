@@ -61,9 +61,14 @@ oaa_path = os.path.join(DATASET_DIR, "outs_above_average_2024_2025.csv")
 if os.path.exists(oaa_path):
     df_oaa = pd.read_csv(oaa_path)
 else:
-    from savant_extras import outs_above_average, outs_above_average_range
-    df_oaa = outs_above_average_range(2024, 2025)
-    df_oaa = coerce_numeric(df_oaa)
+    from pybaseball import statcast_outs_above_average
+    frames = []
+    for y in YEARS:
+        df_tmp = statcast_outs_above_average(y, 'all')
+        df_tmp = coerce_numeric(df_tmp)
+        frames.append(df_tmp)
+        time.sleep(1)
+    df_oaa = pd.concat(frames, ignore_index=True)
 
 print(f"OAA: {len(df_oaa)} fielder-seasons, columns: {list(df_oaa.columns[:8])}")
 df_oaa.head()
@@ -164,10 +169,10 @@ oj_path = os.path.join(DATASET_DIR, "outfield_jump_2024_2025.csv")
 if os.path.exists(oj_path):
     df_oj = pd.read_csv(oj_path)
 else:
-    from savant_extras import outfield_jump
+    from pybaseball import statcast_outfielder_jump
     frames = []
     for y in YEARS:
-        df_tmp = outfield_jump(y)
+        df_tmp = statcast_outfielder_jump(y)
         df_tmp = coerce_numeric(df_tmp)
         if "year" not in df_tmp.columns:
             df_tmp["year"] = y
@@ -314,20 +319,24 @@ if len(df_pf[df_pf["season"] == 2024]) > 0:
 # - **Location+**: pitch location within counts and pitch types
 # - **Pitching+**: combined overall quality
 #
-# 100 = MLB average. These metrics are NOT available in pybaseball.
+# 100 = MLB average. Available via pybaseball's fg_pitching_data().
 
 # %%
 pq_path = os.path.join(DATASET_DIR, "pitcher_quality_2024_2025.csv")
 if os.path.exists(pq_path):
     df_pq = pd.read_csv(pq_path)
 else:
-    from savant_extras import pitcher_quality
+    from pybaseball import fg_pitching_data
+    _PQ_COLS = ["Name", "Team", "Age", "IP", "Stuff+", "Location+", "Pitching+"]
+    _PQ_RENAME = {"Name": "name", "Team": "team", "Age": "age", "IP": "ip",
+                  "Stuff+": "stuff_plus", "Location+": "location_plus", "Pitching+": "pitching_plus"}
     frames = []
     for y in YEARS:
-        df_tmp = pitcher_quality(y)
+        df_tmp = fg_pitching_data(y, qual=0)
+        avail = [c for c in _PQ_COLS if c in df_tmp.columns]
+        df_tmp = df_tmp[avail].rename(columns=_PQ_RENAME).copy()
         df_tmp = coerce_numeric(df_tmp)
-        if "season" not in df_tmp.columns:
-            df_tmp["season"] = y
+        df_tmp["season"] = y
         frames.append(df_tmp)
         time.sleep(1.5)
     df_pq = pd.concat(frames, ignore_index=True)
