@@ -3,6 +3,10 @@ name: Update WBC 2026 Kaggle Dataset
 on:
   workflow_dispatch:
     inputs:
+      memo:
+        description: 'この実行の意図（必須）'
+        required: true
+        type: string
       message:
         description: 'Version message for Kaggle (e.g. "Roster update Mar 1")'
         required: false
