@@ -3,6 +3,10 @@ name: Update Kaggle Dataset
 on:
   workflow_dispatch:
     inputs:
+      memo:
+        description: 'この実行の意図（必須）'
+        required: true
+        type: string
       dataset_dir:
         description: 'Dataset directory under kaggle-datasets/ (e.g. savant-extras-dataset)'
         required: true
