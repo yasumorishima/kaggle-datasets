@@ -3,6 +3,10 @@ name: Push Notebook to Kaggle
 on:
   workflow_dispatch:
     inputs:
+      memo:
+        description: 'この実行の意図'
+        required: false
+        type: string
       notebook_dir:
         description: 'Notebook directory under kaggle-datasets/ (e.g. savant-extras-showcase)'
         required: true
