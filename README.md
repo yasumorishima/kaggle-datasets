@@ -2,7 +2,7 @@
 
 Baseball-themed datasets published on Kaggle, generated with [pybaseball](https://github.com/jldbc/pybaseball) and Baseball Savant.
 
-## Published Datasets (3)
+## Published Datasets (6)
 
 ### 1. [Japanese MLB Players Statcast (2015-2025)](https://www.kaggle.com/datasets/yasunorim/japan-mlb-pitchers-batters-statcast)
 
@@ -35,7 +35,15 @@ Seasonal arsenal composition and performance metrics for MLB pitchers (2020-2025
 - **DOI:** `10.34740/kaggle/dsv/10704532`
 - **Article:** [Zenn](https://zenn.dev/yasumorishima/articles/mlb-pitcher-arsenal-dataset-2020-2025)
 
-### 4. [Baseball Savant Leaderboards (2024-2025)](https://www.kaggle.com/datasets/yasunorim/baseball-savant-leaderboards-2024)
+### 4. [MLB Statcast + Bat Tracking (2024-2025)](https://www.kaggle.com/datasets/yasunorim/mlb-statcast-bat-tracking-2024-2025)
+
+Pitch-by-pitch Statcast data merged with Bat Tracking metrics.
+
+- **Data:** ~1.4M rows, ~2.4 GB
+- **Metrics:** bat speed, swing length, swing path tilt, Statcast pitch-by-pitch data
+- **Notebook:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/yasumorishima/kaggle-datasets/blob/main/dataset4_statcast_bat_tracking/generate.ipynb)
+
+### 5. [Baseball Savant Leaderboards (2024-2025)](https://www.kaggle.com/datasets/yasunorim/baseball-savant-leaderboards-2024)
 
 20 Baseball Savant & FanGraphs leaderboards as clean CSV files.
 
@@ -43,7 +51,7 @@ Seasonal arsenal composition and performance metrics for MLB pitchers (2020-2025
 - **Sources:** savant-extras v0.4.3 (17 leaderboards) + pybaseball (OAA, Outfield Jump, Pitcher Quality)
 - **Notebooks:** [Showcase](https://www.kaggle.com/code/yasunorim/savant-extras-showcase) · [Defense & Pitching Quality](https://www.kaggle.com/code/yasunorim/savant-extras-defense-pitching-quality)
 
-### 5. [WBC 2026 Scouting - Statcast Data](https://www.kaggle.com/datasets/yasunorim/wbc-2026-scouting) 🥈
+### 6. [WBC 2026 Scouting - Statcast Data](https://www.kaggle.com/datasets/yasunorim/wbc-2026-scouting) 🥈
 
 Pitch-by-pitch Statcast data for WBC 2026 roster players, 20 countries.
 
@@ -52,15 +60,6 @@ Pitch-by-pitch Statcast data for WBC 2026 roster players, 20 countries.
 - **Summary:** 109 batters / 90 pitchers (per-player stats)
 - **Rosters:** 308 MLB-affiliated players across 20 countries
 - **Auto-update:** GitHub Actions ([`update-wbc-dataset.yml`](.github/workflows/update-wbc-dataset.yml)) — triggers on `workflow_dispatch`
-
-## In Progress (1)
-
-### 5. MLB Statcast + Bat Tracking (2024-2025)
-
-Pitch-by-pitch Statcast data with Bat Tracking metrics (bat speed, swing length, swing path tilt).
-
-- **Status:** 🚧 Generating dataset (~2.4GB, ~1.4M rows)
-- **Notebook:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/yasumorishima/kaggle-datasets/blob/main/dataset4_statcast_bat_tracking/generate.ipynb)
 
 ## Workflow
 
