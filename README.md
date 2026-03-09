@@ -15,7 +15,7 @@ Comprehensive Statcast data for 34 Japanese MLB players across 10+ seasons.
 - **DOI:** `10.34740/kaggle/dsv/10697439`
 - **Article:** [Zenn](https://zenn.dev/yasumorishima/articles/kaggle-dataset-japanese-mlb-statcast)
 
-### 2. [MLB Bat Tracking (2024-2025)](https://www.kaggle.com/datasets/yasunorim/mlb-bat-tracking-2024-2025) 🥉
+### 2. [MLB Bat Tracking (2024-2025)](https://www.kaggle.com/datasets/yasunorim/mlb-bat-tracking-2024-2025) 🥈
 
 MLB bat tracking leaderboard data from Baseball Savant (2024-2025).
 
@@ -43,7 +43,7 @@ Seasonal arsenal composition and performance metrics for MLB pitchers (2020-2025
 - **Sources:** savant-extras v0.4.3 (17 leaderboards) + pybaseball (OAA, Outfield Jump, Pitcher Quality)
 - **Notebooks:** [Showcase](https://www.kaggle.com/code/yasunorim/savant-extras-showcase) · [Defense & Pitching Quality](https://www.kaggle.com/code/yasunorim/savant-extras-defense-pitching-quality)
 
-### 5. [WBC 2026 Scouting - Statcast Data](https://www.kaggle.com/datasets/yasunorim/wbc-2026-scouting)
+### 5. [WBC 2026 Scouting - Statcast Data](https://www.kaggle.com/datasets/yasunorim/wbc-2026-scouting) 🥈
 
 Pitch-by-pitch Statcast data for WBC 2026 roster players, 20 countries.
 
