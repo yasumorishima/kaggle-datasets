@@ -1,0 +1,13 @@
+{
+  "id": "yasunorim/mlb-bat-tracking-analysis-2024-2025",
+  "title": "MLB Bat Tracking Analysis 2024-2025",
+  "code_file": "bat_tracking_analysis.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "false",
+  "enable_gpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": ["yasunorim/mlb-statcast-bat-tracking-2024-2025"],
+  "competition_sources": [],
+  "kernel_sources": []
+}

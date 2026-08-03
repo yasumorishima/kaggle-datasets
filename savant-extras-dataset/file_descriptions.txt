@@ -1,0 +1,141 @@
+================================================================
+Baseball Savant Leaderboards (2024-2025) - File Descriptions
+================================================================
+Use the text below for each file's "About this file" section on Kaggle.
+================================================================
+
+
+----------------------------------------------------------------
+arm_strength_2024_2025.csv
+----------------------------------------------------------------
+Fielder arm strength data from Baseball Savant for the 2024 and 2025 MLB seasons.
+Contains throw velocities (mph) by position for all qualifying fielders,
+including max arm strength, average velocity per position, and total throw counts.
+Collected using the savant-extras Python package.
+
+
+----------------------------------------------------------------
+bat_tracking_2024_2025.csv
+----------------------------------------------------------------
+Bat tracking data from Baseball Savant for the 2024 and 2025 MLB seasons.
+Contains swing metrics for qualifying batters, including average bat speed (mph),
+attack angle, swing tilt, attack direction, and intercept point measurements.
+Collected using the savant-extras Python package.
+
+
+----------------------------------------------------------------
+batted_ball_2024_2025.csv
+----------------------------------------------------------------
+Batted ball profile data from Baseball Savant for the 2024 and 2025 MLB seasons.
+Contains batted ball rates (ground ball, fly ball, line drive, pop-up)
+and directional splits (pull, straight, opposite field) for qualifying batters.
+Collected using the savant-extras Python package.
+
+
+----------------------------------------------------------------
+baserunning_2024_2025.csv
+----------------------------------------------------------------
+Baserunning run value data from Baseball Savant for the 2024 and 2025 MLB seasons.
+Contains total baserunning run values, extra base advancement runs,
+stolen base contribution, and lead distance metrics for qualifying runners.
+Collected using the savant-extras Python package.
+
+
+----------------------------------------------------------------
+basestealing_2024_2025.csv
+----------------------------------------------------------------
+Base stealing data from Baseball Savant for the 2024 and 2025 MLB seasons.
+Contains stolen base run values, attempt counts, success rates,
+and lead distance metrics (primary and secondary) for qualifying runners.
+Collected using the savant-extras Python package.
+
+
+----------------------------------------------------------------
+catcher_blocking_2024_2025.csv
+----------------------------------------------------------------
+Catcher blocking data from Baseball Savant for the 2024 and 2025 MLB seasons.
+Contains blocks above average, passed ball / wild pitch prevention runs,
+and blocking performance by difficulty level (easy, medium, tough)
+for qualifying catchers. Collected using the savant-extras Python package.
+
+
+----------------------------------------------------------------
+catcher_stance_2024_2025.csv
+----------------------------------------------------------------
+Catcher stance data from Baseball Savant for the 2024 and 2025 MLB seasons.
+Compares one-knee vs. traditional stance across framing, blocking, and throwing
+run values at the league level. Each row represents the league average
+for a given year. Collected using the savant-extras Python package.
+
+
+----------------------------------------------------------------
+catcher_throwing_2024_2025.csv
+----------------------------------------------------------------
+Catcher throwing data from Baseball Savant for the 2024 and 2025 MLB seasons.
+Contains caught stealing run value, caught stealing above average,
+pop time, exchange time, arm strength, and runner speed metrics
+for qualifying catchers. Collected using the savant-extras Python package.
+
+
+----------------------------------------------------------------
+home_runs_2024_2025.csv
+----------------------------------------------------------------
+Home run data from Baseball Savant for the 2024 and 2025 MLB seasons.
+Contains HR totals, expected HRs (xHR), xHR difference, average HR trot time,
+and no-doubter / mostly-gone counts for qualifying hitters.
+Collected using the savant-extras Python package.
+
+
+----------------------------------------------------------------
+pitch_movement_2024_2025.csv
+----------------------------------------------------------------
+Pitch movement data from Baseball Savant for the 2024 and 2025 MLB seasons.
+Contains horizontal and vertical break (inches) by pitch type for each pitcher,
+including league average comparisons and induced break values.
+Collected using the savant-extras Python package.
+
+
+----------------------------------------------------------------
+pitch_tempo_2024_2025.csv
+----------------------------------------------------------------
+Pitch tempo data from Baseball Savant for the 2024 and 2025 MLB seasons.
+Contains median seconds between pitches with bases empty and with runners on base,
+plus hot/warm/cold pace frequency breakdown for qualifying pitchers.
+Collected using the savant-extras Python package.
+
+
+----------------------------------------------------------------
+pitcher_arm_angle_2024_2025.csv
+----------------------------------------------------------------
+Pitcher arm angle data from Baseball Savant for the 2024 and 2025 MLB seasons.
+Contains release point arm angle (degrees), relative horizontal and vertical
+release positions, and shoulder position metrics for qualifying pitchers.
+Collected using the savant-extras Python package.
+
+
+----------------------------------------------------------------
+running_game_2024_2025.csv
+----------------------------------------------------------------
+Pitcher running game control data from Baseball Savant for the 2024 and 2025 MLB seasons.
+Contains runs prevented on running attributes, caught stealing above average,
+stolen base attempt rates, and lead distance metrics allowed by qualifying pitchers.
+Collected using the savant-extras Python package.
+
+
+----------------------------------------------------------------
+timer_infractions_2024_2025.csv
+----------------------------------------------------------------
+Pitch clock violation data from Baseball Savant for the 2024 and 2025 MLB seasons.
+Contains total violations by team, broken down by type:
+pitcher timer, batter timer, batter timeout, catcher timer, and defensive shift.
+Collected using the savant-extras Python package.
+
+
+----------------------------------------------------------------
+year_to_year_2024_2025.csv
+----------------------------------------------------------------
+Year-to-year xwOBA change data from Baseball Savant for qualifying batters.
+Contains xwOBA values for each season from 2015 through 2025 and
+delta (change) between consecutive seasons for each player.
+The query_year column indicates which season's leaderboard was queried.
+Collected using the savant-extras Python package.

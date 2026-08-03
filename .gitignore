@@ -17,3 +17,8 @@ KAGGLE_DATASETS_MEMO.md
 *_SESSION_NOTE.md
 *_DEV_NOTE.md
 NEXT_SESSION.md
+
+# kernel 実行の生成物 / ローカル専用（再生成可能・共有しない）
+output/
+output_v4/
+_local_only/
