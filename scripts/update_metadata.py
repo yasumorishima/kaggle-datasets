@@ -60,6 +60,10 @@ def merged(live: dict, want: dict) -> tuple[dict, list[str]]:
     if not set(want_files) <= set(live_files):
         problems.append(f"files in settings but not live: {sorted(set(want_files) - set(live_files))} "
                         f"(live: {sorted(live_files)})")
+    if want_files and all(not (live_files.get(n) or {}).get("columns") for n in want_files):
+        problems.append("the API returned no columns for any file in settings.json (the public file listing "
+                        "does not include per-file columns); set column descriptions in the browser instead "
+                        "(<dataset_dir>/col_*.js in the console of the column editor)")
     out = {k: live.get(k) for k in KEEP}
     if live.get("collaborators"):
         problems.append("the live dataset has collaborators; this script does not carry them over")
@@ -83,6 +87,9 @@ def merged(live: dict, want: dict) -> tuple[dict, list[str]]:
                 col["type"] = c["type"]
             cols.append(col)
         data.append({"name": name, "description": wf["description"], "columns": cols})
+    untyped = [f"{f['name']}.{c['name']}" for f in data for c in f["columns"] if not c.get("type")]
+    if untyped:  # the update would reset their types, and the after-check could not see it
+        problems.append(f"{len(untyped)} columns have no type in the live metadata, e.g. {untyped[:3]}")
     out["data"] = data
     freq = want.get("expectedUpdateFrequency")
     if freq is not None:
