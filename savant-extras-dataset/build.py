@@ -225,6 +225,10 @@ def main() -> int:
     for name in sorted(tables):
         df = tables[name]
         errs = check(name, df, currents.get(name))
+        if name in currents and currents[name].empty:
+            # Savant answered the current season with no rows: it read the season parameter,
+            # but the current-season comparison had nothing to compare against.
+            print(f"note {name}: {CURRENT} came back empty, current-season comparison not applied")
         col = _season_col(name, df) if ("year" in df or "season" in df) else None
         per = df[col].value_counts().sort_index().to_dict() if col else {}
         print(f"{'FAIL' if errs else 'ok  '} {name:<20} {df.shape} {per}")
