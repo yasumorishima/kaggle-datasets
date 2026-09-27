@@ -48,7 +48,8 @@ Pitch-by-pitch Statcast data merged with Bat Tracking metrics.
 20 Baseball Savant & FanGraphs leaderboards as clean CSV files.
 
 - **Files:** 20 CSVs — batting, pitching, fielding, catching, baserunning, park factors
-- **Sources:** savant-extras v0.4.3 (17 leaderboards) + pybaseball (OAA, Outfield Jump, Pitcher Quality)
+- **Sources:** savant-extras 0.6.0 (16 leaderboards) + Savant's OAA CSV endpoint; Outfield Jump, Pitcher Quality and Park Factors (FanGraphs) carried over from the previous version
+- **Build:** generated in GitHub Actions by [`savant-extras-dataset/build.py`](savant-extras-dataset/build.py) (rebuilt September 2026: the previous version had 7 tables where 2024 and 2025 were the same table)
 - **Notebooks:** [Showcase](https://www.kaggle.com/code/yasunorim/savant-extras-showcase) · [Defense & Pitching Quality](https://www.kaggle.com/code/yasunorim/savant-extras-defense-pitching-quality)
 
 ### 6. [WBC 2026 Scouting - Statcast Data](https://www.kaggle.com/datasets/yasunorim/wbc-2026-scouting) 🥈

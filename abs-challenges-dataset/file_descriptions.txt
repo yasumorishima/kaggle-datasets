@@ -1,0 +1,27 @@
+================================================================
+ABS Challenges: Triple-A 2025 to MLB 2026 - File Descriptions
+================================================================
+Use the text below for each file's "About this file" section on Kaggle.
+================================================================
+
+
+----------------------------------------------------------------
+abs_challenges_players.csv
+----------------------------------------------------------------
+Baseball Savant's ABS (Automated Ball-Strike) challenge leaderboard, 15 boards: MLB 2025 spring
+training (the test), Triple-A 2025 and 2026 regular season, MLB 2026 spring training and regular season,
+each for batters, pitchers and catchers as the challenger. One row per player per board, keyed
+by the MLBAM player_id (Savant's own CSV export has no id). Boards were fetched with a minimum of
+0 challenges, so players Savant counts pitches for but who never challenged are included.
+Columns ending in _against describe challenges made against the player's side.
+Collected with the savant-extras Python package (0.6.0).
+
+
+----------------------------------------------------------------
+abs_aaa2025_to_mlb2026.csv
+----------------------------------------------------------------
+Players on both the Triple-A 2025 and the MLB 2026 regular-season boards (batters and catchers,
+joined on player_id), with the same challenge measures side by side: columns ending in _aaa2025
+come from Triple-A 2025, columns ending in _mlb2026 from MLB 2026. Only players with at least one
+pitch in Savant's sample (n_total_sample > 0) on each side are included. Pitchers are left out:
+Triple-A pitchers made 5 challenges in all of 2025.
