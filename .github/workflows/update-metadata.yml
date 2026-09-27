@@ -1,0 +1,42 @@
+name: Update Kaggle Metadata
+
+# Sets a dataset's file and column descriptions, expected update frequency and sources from
+# <dataset_dir>/settings.json, without a new version. Everything else (title, description, tags,
+# licence, cover image) is read from the live dataset and sent back unchanged, then checked.
+
+on:
+  workflow_dispatch:
+    inputs:
+      memo:
+        description: 'この実行の意図（必須）'
+        required: true
+        type: string
+      dataset_dir:
+        description: 'Dataset directory containing settings.json (e.g. abs-challenges-dataset)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Read the live metadata and check settings.json against it; send nothing'
+        required: false
+        default: true
+        type: boolean
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install kaggle
+      - name: Update metadata
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+          DIR: ${{ inputs.dataset_dir }}
+          DRY: ${{ inputs.dry_run }}
+        run: |
+          FLAGS=()
+          if [ "$DRY" = "true" ]; then FLAGS+=(--dry-run); fi
+          python scripts/update_metadata.py "$DIR" "${FLAGS[@]}"

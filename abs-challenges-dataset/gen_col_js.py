@@ -1,4 +1,6 @@
-"""Write col_<file>.js for the two ABS CSVs.
+"""Write col_<file>.js and settings.json for the two ABS CSVs.
+
+settings.json is what the "Update Kaggle Metadata" workflow sends (scripts/update_metadata.py).
 
 Paste a generated file into the browser console on the Kaggle dataset's column-description editor
 (Data tab, edit the file's columns) to fill every column's description, then click Save. Same pattern
@@ -133,6 +135,40 @@ def main() -> None:
         js = "(function() {\n    const columns = {\n" + inner + "\n    };\n" + tail
         (HERE / f"col_{name}.js").write_text(js, encoding="utf-8")
         print(f"col_{name}.js: {len(cols)} columns")
+    write_settings(dict(targets))
+
+
+SOURCES = (
+    "Baseball Savant ABS challenge leaderboard (MLB Advanced Media): "
+    "https://baseballsavant.mlb.com/leaderboard/abs-challenges . "
+    "Collected with savant-extras 0.6.0 (https://pypi.org/project/savant-extras/) by build.py in "
+    "https://github.com/yasumorishima/kaggle-datasets (abs-challenges-dataset), which fails without "
+    "writing anything unless every gate in the dataset description passes."
+)
+
+
+def write_settings(cols_by_file: dict) -> None:
+    """settings.json for scripts/update_metadata.py: file descriptions from file_descriptions.txt,
+    column descriptions from the dicts above, update frequency and sources."""
+    import re
+    text = (HERE / "file_descriptions.txt").read_text(encoding="utf-8")
+    parts = re.split(r"-{20,}\n(\S+\.csv)\n-{20,}\n", text)
+    fdesc = {parts[i]: " ".join(parts[i + 1].split()) for i in range(1, len(parts), 2)}
+    files = {}
+    for name, cols in cols_by_file.items():
+        fname = f"{name}.csv"
+        assert fdesc.get(fname), fname
+        files[fname] = {"description": fdesc[fname], "columns": cols}
+    assert set(files) == set(fdesc), (sorted(files), sorted(fdesc))
+    meta = json.loads((HERE / "dataset-metadata.json").read_text(encoding="utf-8"))
+    settings = {
+        "id": meta["id"],
+        "expectedUpdateFrequency": "never",  # user decision 2026-09-27: fixed after the post-season version
+        "userSpecifiedSources": SOURCES,
+        "files": files,
+    }
+    (HERE / "settings.json").write_text(json.dumps(settings, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    print(f"settings.json: {len(files)} files")
 
 
 if __name__ == "__main__":
