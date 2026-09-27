@@ -2,7 +2,7 @@
 
 Baseball-themed datasets published on Kaggle, generated with [pybaseball](https://github.com/jldbc/pybaseball) and Baseball Savant.
 
-## Published Datasets (6)
+## Published Datasets (7)
 
 ### 1. [Japanese MLB Players Statcast (2015-2025)](https://www.kaggle.com/datasets/yasunorim/japan-mlb-pitchers-batters-statcast)
 
@@ -61,6 +61,13 @@ Pitch-by-pitch Statcast data for WBC 2026 roster players, 20 countries.
 - **Summary:** 109 batters / 90 pitchers (per-player stats)
 - **Rosters:** 308 MLB-affiliated players across 20 countries
 - **Auto-update:** GitHub Actions ([`update-wbc-dataset.yml`](.github/workflows/update-wbc-dataset.yml)) — triggers on `workflow_dispatch`
+
+### 7. [ABS Challenges: Triple-A 2025 to MLB 2026](https://www.kaggle.com/datasets/yasunorim/mlb-abs-challenges-aaa-2025-to-mlb-2026)
+
+Every ABS (Automated Ball-Strike) challenge board on Baseball Savant, keyed by MLBAM player id.
+
+- **Files:** `abs_challenges_players.csv` (15 boards: MLB 2025 spring test, MLB 2026 spring and regular season, Triple-A 2025 and 2026; batters, pitchers, catchers) and `abs_aaa2025_to_mlb2026.csv` (players on both the Triple-A 2025 and MLB 2026 boards, side by side)
+- **Build:** generated in GitHub Actions by [`abs-challenges-dataset/build.py`](abs-challenges-dataset/build.py) with savant-extras 0.6.0
 
 ## Workflow
 
