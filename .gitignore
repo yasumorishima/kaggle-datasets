@@ -22,3 +22,6 @@ NEXT_SESSION.md
 output/
 output_v4/
 _local_only/
+
+# build.sh の出力（アップロード用フォルダ）
+_build/

@@ -1,7 +1,7 @@
 (function() {
     const columns = {
-        "id": "Entity ID (league-level record).",
-        "name": "Entity name (e.g., League).",
+        "id": "MLB Advanced Media catcher ID.",
+        "name": "Catcher name.",
         "year": "MLB season year (2024 or 2025).",
         "pitches": "Total pitches in the dataset.",
         "knee_down_pct": "Proportion of pitches caught in one-knee-down stance.",

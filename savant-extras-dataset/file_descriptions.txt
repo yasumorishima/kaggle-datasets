@@ -64,8 +64,9 @@ catcher_stance_2024_2025.csv
 ----------------------------------------------------------------
 Catcher stance data from Baseball Savant for the 2024 and 2025 MLB seasons.
 Compares one-knee vs. traditional stance across framing, blocking, and throwing
-run values at the league level. Each row represents the league average
-for a given year. Collected using the savant-extras Python package.
+run values. Each row is one qualified catcher in one season (the previous version
+of this file held two league-level rows per year by mistake).
+Collected using the savant-extras Python package (0.6.0).
 
 
 ----------------------------------------------------------------
@@ -90,7 +91,8 @@ Collected using the savant-extras Python package.
 pitch_movement_2024_2025.csv
 ----------------------------------------------------------------
 Pitch movement data from Baseball Savant for the 2024 and 2025 MLB seasons.
-Contains horizontal and vertical break (inches) by pitch type for each pitcher,
+Contains horizontal and vertical break (inches) for every pitch type, one row per pitcher
+and pitch type (the previous version held four-seam fastballs only),
 including league average comparisons and induced break values.
 Collected using the savant-extras Python package.
 
@@ -135,7 +137,8 @@ Collected using the savant-extras Python package.
 year_to_year_2024_2025.csv
 ----------------------------------------------------------------
 Year-to-year xwOBA change data from Baseball Savant for qualifying batters.
-Contains xwOBA values for each season from 2015 through 2025 and
-delta (change) between consecutive seasons for each player.
-The query_year column indicates which season's leaderboard was queried.
+Contains xwOBA values for each season from 2015 through the current one
+(the 2026 column was still in progress when built) and the delta (change)
+between consecutive seasons for each player.
+The year column is the season whose qualified batters are listed (2024 or 2025).
 Collected using the savant-extras Python package.
