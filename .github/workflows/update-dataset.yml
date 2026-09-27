@@ -15,6 +15,11 @@ on:
         description: 'Version notes (e.g. "Add 2025 data")'
         required: true
         type: string
+      dry_run:
+        description: 'Build and check only; do not publish a new version'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   update:
@@ -32,15 +37,33 @@ jobs:
       - name: Install kaggle
         run: pip install kaggle
 
-      - name: Update dataset version
+      # A dataset whose CSVs are generated (not committed) ships a build.sh that writes the
+      # upload folder to $DIR/_build. Without one, the folder itself is uploaded as before.
+      - name: Build dataset files
+        id: build
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+          DIR: ${{ inputs.dataset_dir }}
         run: |
-          DIR="${{ inputs.dataset_dir }}"
-          if [ ! -f "$DIR/dataset-metadata.json" ]; then
-            echo "No dataset-metadata.json found in $DIR — aborting."
+          if [ -f "$DIR/build.sh" ]; then
+            bash "$DIR/build.sh"
+            echo "upload_dir=$DIR/_build" >> "$GITHUB_OUTPUT"
+          else
+            echo "upload_dir=$DIR" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Update dataset version
+        if: ${{ !inputs.dry_run }}
+        env:
+          KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
+          KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
+          UPLOAD_DIR: ${{ steps.build.outputs.upload_dir }}
+          VERSION_NOTES: ${{ inputs.version_notes }}
+        run: |
+          if [ ! -f "$UPLOAD_DIR/dataset-metadata.json" ]; then
+            echo "No dataset-metadata.json found in $UPLOAD_DIR — aborting."
             exit 1
           fi
-          kaggle datasets version -p "$DIR" -m "${{ inputs.version_notes }}" --dir-mode zip
+          kaggle datasets version -p "$UPLOAD_DIR" -m "$VERSION_NOTES" --dir-mode zip
           echo "Dataset updated successfully."

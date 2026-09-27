@@ -23,7 +23,9 @@
         "delta_2023_2024": "Change in xwOBA from 2023 to 2024.",
         "2025": "xwOBA for the 2025 season.",
         "delta_2024_2025": "Change in xwOBA from 2024 to 2025.",
-        "query_year": "Season year used to query this leaderboard (2024 or 2025)."
+        "2026": "xwOBA for the 2026 season (in progress when the dataset was built).",
+        "delta_2025_2026": "Change in xwOBA from 2025 to 2026 (2026 in progress when built).",
+        "year": "Season whose qualified batters are listed (2024 or 2025)."
     };
     let updated = 0, skipped = 0, failed = 0;
     const headers = document.querySelectorAll('span[title]');
