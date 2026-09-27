@@ -66,7 +66,7 @@ Pitch-by-pitch Statcast data for WBC 2026 roster players, 20 countries.
 
 Every ABS (Automated Ball-Strike) challenge board on Baseball Savant, keyed by MLBAM player id.
 
-- **Files:** `abs_challenges_players.csv` (15 boards: MLB 2025 spring test, MLB 2026 spring and regular season, Triple-A 2025 and 2026; batters, pitchers, catchers) and `abs_aaa2025_to_mlb2026.csv` (players on both the Triple-A 2025 and MLB 2026 boards, side by side)
+- **Files:** `abs_challenges_players.csv` (15 boards: MLB 2025 spring test, MLB 2026 spring and regular season, Triple-A 2025 and 2026; batters, pitchers, catchers) and `abs_aaa2025_to_mlb2026.csv` (batters and catchers on both the Triple-A 2025 and MLB 2026 regular-season boards, side by side)
 - **Build:** generated in GitHub Actions by [`abs-challenges-dataset/build.py`](abs-challenges-dataset/build.py) with savant-extras 0.6.0
 
 ## Workflow
