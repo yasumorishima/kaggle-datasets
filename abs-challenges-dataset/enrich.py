@@ -14,8 +14,9 @@ Three free, keyless sources, each fetched for the board's own level, season and 
 
 Every fetch is checked before it is used (enrich() returns the problems; build.py fails on any):
 the season in the reply is the one asked for, regular season and spring training replies differ,
-Savant's per-player plate appearances agree with StatsAPI on regular-season boards (a level or
-season Savant ignored would not), and no player appears twice in a reply.
+on every board Savant's search covers StatsAPI's players and agrees with StatsAPI's plate
+appearances (a level or season Savant ignored would not), no zone reply is empty, and no player
+appears twice in a reply.
 """
 from __future__ import annotations
 
@@ -170,7 +171,9 @@ def _sc(session, level: str, year: int, game_type: str, player_type: str, extra:
     r = _get(session, url)
     text = r.content.decode("utf-8-sig")
     if not text.strip():
-        return pd.DataFrame(columns=["player_id", "pitches", "takes", "swings"])
+        if not extra:
+            raise ValueError(f"Savant search returned an empty body for {level} {year} {game_type} {player_type}")
+        return pd.DataFrame(columns=["player_id", "pitches", "takes", "swings", "whiffs"])
     df = pd.read_csv(io.StringIO(text))
     if df.empty and not extra:
         raise ValueError(f"Savant search returned no rows for {level} {year} {game_type} {player_type}")
@@ -210,6 +213,9 @@ def sc_stats(session, level: str, year: int, game_type: str, api: dict) -> tuple
                 df[f"{z}_{c}"] = df["player_id"].map(zi[c]).fillna(0)
         if (df["oz_pitches"] + df["iz_pitches"] > df["pitches"]).any():
             errs.append(f"{tag}: zone pitches exceed pitches")
+        for name in ("oz_pitches", "iz_pitches", "oz_swings", "iz_swings"):
+            if df[name].sum() == 0:
+                errs.append(f"{tag}: {name} is 0 for every player (empty reply)")
         if ((df["oz_swings"] > df["oz_pitches"]) | (df["iz_swings"] > df["iz_pitches"])).any():
             errs.append(f"{tag}: more swings than pitches in a zone")
         # Pitches with a Statcast zone (tracking missing for some pitches, notably MLB 2025 spring).
