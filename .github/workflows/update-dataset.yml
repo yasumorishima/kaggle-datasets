@@ -82,7 +82,8 @@ jobs:
             exit 1
           fi
           # The kaggle CLI prints a rejected upload ("... creation error: ...") and can still
-          # exit 0, so its output is checked too.
+          # exit 0 (as do rejected tags and, in older versions, a failed file upload), so its output is
+          # checked too.
           set -o pipefail
           if [ "$CREATE" = "true" ]; then
             FLAGS=()
@@ -91,7 +92,7 @@ jobs:
           else
             kaggle datasets version -p "$UPLOAD_DIR" -m "$VERSION_NOTES" --dir-mode zip 2>&1 | tee kaggle.log
           fi
-          if grep -qi "error" kaggle.log; then
+          if grep -qiE "error|not valid tags|unsuccessful" kaggle.log; then
             echo "The kaggle CLI reported an error (see above)."
             exit 1
           fi

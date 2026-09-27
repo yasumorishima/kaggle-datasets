@@ -32,11 +32,12 @@ from savant_extras._http import EmptySavantResponse
 CHALLENGERS = ("batter", "pitcher", "catcher")
 # (level, season, game type) boards that must have rows. MLB tested the system in 2025 spring
 # training. Boards measured empty (2026-09-27): MLB 2025 regular season, MLB 2024 spring training,
-# Triple-A spring training 2025 and 2026. The Triple-A spring boards are fetched and must stay
-# empty, because the description says so; if Savant starts serving them the build fails.
+# Triple-A spring training 2025 and 2026. The description says the MLB 2025 regular season and
+# Triple-A spring training have no boards, so those are fetched and must stay empty; if Savant
+# starts serving them the build fails.
 EXPECTED = (("mlb", 2025, "S"), ("mlb", 2026, "S"), ("mlb", 2026, "R"),
             ("aaa", 2025, "R"), ("aaa", 2026, "R"))
-MUST_BE_EMPTY = (("aaa", 2025, "S"), ("aaa", 2026, "S"))
+MUST_BE_EMPTY = (("mlb", 2025, "R"), ("aaa", 2025, "S"), ("aaa", 2026, "S"))
 # Minimum rows per board with min_challenges=0. Catchers are the smallest group (~110 in MLB).
 MIN_ROWS = {"batter": 300, "pitcher": 300, "catcher": 80}
 # Boards whose challengers must have made challenges (pitchers barely challenged in AAA 2025).
