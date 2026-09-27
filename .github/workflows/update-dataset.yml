@@ -20,6 +20,16 @@ on:
         required: false
         default: false
         type: boolean
+      create:
+        description: 'First upload of a new dataset (kaggle datasets create) instead of a new version'
+        required: false
+        default: false
+        type: boolean
+      public:
+        description: 'With create: make the new dataset public (otherwise it is created private)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   update:
@@ -60,10 +70,30 @@ jobs:
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
           UPLOAD_DIR: ${{ steps.build.outputs.upload_dir }}
           VERSION_NOTES: ${{ inputs.version_notes }}
+          CREATE: ${{ inputs.create }}
+          PUBLIC: ${{ inputs.public }}
         run: |
           if [ ! -f "$UPLOAD_DIR/dataset-metadata.json" ]; then
             echo "No dataset-metadata.json found in $UPLOAD_DIR — aborting."
             exit 1
           fi
-          kaggle datasets version -p "$UPLOAD_DIR" -m "$VERSION_NOTES" --dir-mode zip
-          echo "Dataset updated successfully."
+          if [ "$PUBLIC" = "true" ] && [ "$CREATE" != "true" ]; then
+            echo "public only applies to create; an existing dataset's visibility is not changed here."
+            exit 1
+          fi
+          # The kaggle CLI prints a rejected upload ("... creation error: ...") and can still
+          # exit 0 (as do rejected tags and, in older versions, a failed file upload), so its output is
+          # checked too.
+          set -o pipefail
+          if [ "$CREATE" = "true" ]; then
+            FLAGS=()
+            if [ "$PUBLIC" = "true" ]; then FLAGS+=(--public); fi
+            kaggle datasets create -p "$UPLOAD_DIR" --dir-mode zip "${FLAGS[@]}" 2>&1 | tee kaggle.log
+          else
+            kaggle datasets version -p "$UPLOAD_DIR" -m "$VERSION_NOTES" --dir-mode zip 2>&1 | tee kaggle.log
+          fi
+          if grep -qiE "error|not valid tags|unsuccessful" kaggle.log; then
+            echo "The kaggle CLI reported an error (see above)."
+            exit 1
+          fi
+          echo "Done (create=$CREATE, public=$PUBLIC)."
