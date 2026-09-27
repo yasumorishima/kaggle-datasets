@@ -27,9 +27,29 @@ KEEP = ("title", "subtitle", "description", "keywords", "licenses", "isPrivate")
 
 
 def fetch(api, ref: str) -> dict:
+    """Live metadata as the update expects it. dataset_metadata() writes the whole response,
+    {"info": {...}}, so it is unwrapped here the same way dataset_metadata_update() does. When the
+    info has no file list, the files and their columns come from the file-listing endpoint."""
     with tempfile.TemporaryDirectory() as d:
         path = api.dataset_metadata(ref, d)
-        return json.loads(Path(path).read_text(encoding="utf-8"))
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    info = raw.get("info")
+    if not isinstance(info, dict):
+        raise SystemExit(f"downloaded metadata has no info object (keys {sorted(raw)})")
+    if not info.get("data"):
+        resp = api.dataset_list_files(ref, page_size=200)
+        if getattr(resp, "error_message", None):
+            raise SystemExit(f"file listing failed: {resp.error_message}")
+        if getattr(resp, "next_page_token", None):
+            raise SystemExit("more files than one page; not handled")
+        info["data"] = [
+            {"name": f.name, "description": f.description or "",
+             "columns": [{"name": c.name, "type": c.type, "description": c.description or ""}
+                         for c in (f.columns or [])]}
+            for f in resp.files
+        ]
+        info["_files_from"] = "list_files"
+    return info
 
 
 def merged(live: dict, want: dict) -> tuple[dict, list[str]]:
@@ -37,15 +57,23 @@ def merged(live: dict, want: dict) -> tuple[dict, list[str]]:
     problems = []
     live_files = {f["name"]: f for f in live.get("data") or []}
     want_files = want["files"]
-    if set(live_files) != set(want_files):
-        problems.append(f"file names differ: live {sorted(live_files)} vs settings {sorted(want_files)}")
+    if not set(want_files) <= set(live_files):
+        problems.append(f"files in settings but not live: {sorted(set(want_files) - set(live_files))} "
+                        f"(live: {sorted(live_files)})")
+    if want_files and all(not (live_files.get(n) or {}).get("columns") for n in want_files):
+        problems.append("the API returned no columns for any file in settings.json (the public file listing "
+                        "does not include per-file columns); set column descriptions in the browser instead "
+                        "(<dataset_dir>/col_*.js in the console of the column editor)")
     out = {k: live.get(k) for k in KEEP}
     if live.get("collaborators"):
         problems.append("the live dataset has collaborators; this script does not carry them over")
     data = []
     for name, lf in live_files.items():
         wf = want_files.get(name)
-        if wf is None:
+        if wf is None:  # not ours to change: sent back exactly as it is
+            data.append({"name": name, "description": lf.get("description") or "",
+                         "columns": [{k: c[k] for k in ("name", "description", "type") if c.get(k) is not None}
+                                     for c in lf.get("columns") or []]})
             continue
         live_cols = [c["name"] for c in lf.get("columns") or []]
         if set(live_cols) != set(wf["columns"]) or len(live_cols) != len(set(live_cols)):
@@ -59,6 +87,9 @@ def merged(live: dict, want: dict) -> tuple[dict, list[str]]:
                 col["type"] = c["type"]
             cols.append(col)
         data.append({"name": name, "description": wf["description"], "columns": cols})
+    untyped = [f"{f['name']}.{c['name']}" for f in data for c in f["columns"] if not c.get("type")]
+    if untyped:  # the update would reset their types, and the after-check could not see it
+        problems.append(f"{len(untyped)} columns have no type in the live metadata, e.g. {untyped[:3]}")
     out["data"] = data
     freq = want.get("expectedUpdateFrequency")
     if freq is not None:
@@ -112,11 +143,18 @@ def main() -> int:
 
     before = fetch(api, ref)
     print(f"live: {ref} usability {before.get('usabilityRating')} "
-          f"freq {before.get('expectedUpdateFrequency')!r} sources {len(before.get('userSpecifiedSources') or '')} chars")
+          f"freq {before.get('expectedUpdateFrequency')!r} sources {len(before.get('userSpecifiedSources') or '')} chars "
+          f"files from {before.get('_files_from', 'metadata')} keys {sorted(before)}")
     for f in before.get("data") or []:
         described = sum(bool(c.get("description")) for c in f.get("columns") or [])
         print(f"  {f['name']}: file description {len(f.get('description') or '')} chars, "
               f"{described}/{len(f.get('columns') or [])} columns described")
+    # Missing fields are sent as "" or [] and the download omits empty fields, so a blanked field
+    # would not show up in the after-check: refuse to send unless every kept field is present.
+    empty = [k for k in ("title", "subtitle", "description", "keywords", "licenses") if not before.get(k)]
+    if empty:
+        print(f"NOT SENT: live metadata has no {empty}; sending would blank them")
+        return 1
     sent, problems = merged(before, want)
     if problems:
         print("NOT SENT:\n  " + "\n  ".join(problems))
@@ -129,7 +167,7 @@ def main() -> int:
         return 0
 
     with tempfile.TemporaryDirectory() as d:  # no cover image here, so the image is left as it is
-        (Path(d) / "dataset-metadata.json").write_text(json.dumps(sent, ensure_ascii=False), encoding="utf-8")
+        (Path(d) / "dataset-metadata.json").write_text(json.dumps(sent, ensure_ascii=True), encoding="utf-8")
         api.dataset_metadata_update(ref, d)
 
     after = fetch(api, ref)
