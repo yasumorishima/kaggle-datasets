@@ -63,7 +63,7 @@ def merged(live: dict, want: dict) -> tuple[dict, list[str]]:
     if want_files and all(not (live_files.get(n) or {}).get("columns") for n in want_files):
         problems.append("the API returned no columns for any file in settings.json (the public file listing "
                         "does not include per-file columns); set column descriptions in the browser instead "
-                        "(<dataset_dir>/col_*.js in the console of the column editor)")
+                        "(from <dataset_dir>/settings.json, in the column editor)")
     out = {k: live.get(k) for k in KEEP}
     if live.get("collaborators"):
         problems.append("the live dataset has collaborators; this script does not carry them over")
