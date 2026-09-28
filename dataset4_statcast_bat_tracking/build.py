@@ -24,11 +24,13 @@ Gates (the build fails and writes nothing if any is violated):
 - on days with at least NULL_CHECK_MIN_ROWS pitches, no kept column is empty for the whole day
   (except days-since-previous-game on the season's first two days and days-until-next-game on its
   last two), and in every game with at least GAME_CHECK_MIN_PITCHES pitches no kept column is empty
-  (runners on base excepted) and the shares of bat_speed on swings, xwOBA on batted balls and
-  delta_run_exp are above measured floors, which catches a day or game Savant has not finished
-  backfilling. Neutral-site games (venue is not the home team's home venue per StatsAPI) listed in
-  NEUTRAL_GAPS may have their measured columns empty for the whole game (never partly filled);
-  unlisted neutral games get the normal rules. The whole-day check looks only at home-venue games,
+  (runners on base excepted), the shares of xwOBA on batted balls and delta_run_exp are above
+  measured floors, and each column in COLUMN_FLOORS (bat tracking, arm angle, spin/extension,
+  fielding alignment) is either empty on every applicable pitch of the game or filled at or above
+  its measured floor, which catches a day or game Savant has not finished backfilling.
+  Neutral-site games (venue is not the home team's home venue per StatsAPI) listed in NEUTRAL_GAPS
+  may have their measured columns empty for the whole game; a partly filled column below its
+  floor fails there too. Unlisted neutral games get the normal rules. The whole-day check looks only at home-venue games,
   so a day with only neutral games (Seoul 2024-03-20/21) is covered by the per-game check alone.
   A full build (or a sample with a season's last days) refuses to start within SETTLE_DAYS of that
   season's end;
@@ -82,20 +84,42 @@ NULL_CHECK_MIN_ROWS = 200
 # Per game (games with >= GAME_CHECK_MIN_PITCHES pitches), a day Savant has only partly processed
 # shows up as games with few of these filled. Floors set below the minimum over every game of
 # complete days: over 114 games of 100+ pitches on 10 processed days (2024-06-26, 07-10, 08-26,
-# 09-30, 2025-03-18, 09-28, 2026-03-26, 09-23, 09-24, 09-26) the minima were bat_speed on swings
-# 0.624 (1st percentile 0.844), xwOBA on batted balls 0.840 (0.944), delta_run_exp 0.955 (0.968).
+# 09-30, 2025-03-18, 09-28, 2026-03-26, 09-23, 09-24, 09-26) the minima were xwOBA on batted
+# balls 0.840 (1st percentile 0.944) and delta_run_exp 0.955 (0.968). Column fill floors
+# (bat tracking, arm angle, spin, alignment) are in COLUMN_FLOORS below.
 GAME_CHECK_MIN_PITCHES = 100
-GAME_FLOORS = {"bat_share": 0.50, "xwoba_share": 0.75, "dre_share": 0.90}
+GAME_FLOORS = {"xwoba_share": 0.75, "dre_share": 0.90}
 # Columns that can be empty for a whole game by chance (on_3b was, in 3 of 128 games measured).
 GAME_OPTIONAL = {"on_1b", "on_2b", "on_3b"}
 BAT_TRACKING = ("bat_speed", "swing_length", "miss_distance", "attack_angle", "attack_direction",
                 "swing_path_tilt", "intercept_ball_minus_batter_pos_x_inches",
                 "intercept_ball_minus_batter_pos_y_inches")
+# Per game, each of these columns is either empty on every applicable pitch or filled on at least
+# this share of them (applicable: swings, swinging strikes, thrown pitches with a pitch_type, or all
+# pitches). Floors sit below the minimum over 451 games of 100+ pitches on 38 processed days
+# (2024-2026; for NEUTRAL_GAPS games only the columns not in their set), measured 2026-09-28;
+# minimum in brackets: swing columns 0.624 (2025-09-28 game 776141), miss_distance 0.0196 (same
+# game), arm_angle 0.693 (Tokyo 2025-03-19), effective_speed 0.894 (Mexico City 2026-04-26),
+# release_extension 0.944 (2026-03-26 game 824865), release_spin_rate / spin_axis 0.0595
+# (2024-06-20 game 745734, a home game), fielding alignment 0.682 (Tokyo 2025-03-19).
+_SWING = ("bat_speed", "swing_length", "attack_angle", "attack_direction", "swing_path_tilt",
+          "intercept_ball_minus_batter_pos_x_inches", "intercept_ball_minus_batter_pos_y_inches")
+COLUMN_FLOORS: dict[str, tuple[str, float]] = {
+    **{c: ("swing", 0.50) for c in _SWING},
+    "miss_distance": ("miss", 0.01),
+    "arm_angle": ("thrown", 0.60),
+    "effective_speed": ("thrown", 0.85),
+    "release_extension": ("thrown", 0.90),
+    "release_spin_rate": ("thrown", 0.04),
+    "spin_axis": ("thrown", 0.04),
+    "if_fielding_alignment": ("all", 0.60),
+    "of_fielding_alignment": ("all", 0.60),
+}
 # Neutral-site games without full Hawk-Eye coverage, measured 2026-09-28 game by game:
 # game_pk -> (columns empty on every pitch of that game, xwOBA floor override or None).
-# A listed column must be either empty for the whole game or pass the normal rules (bat_speed then
-# has to meet the bat_share floor): a partly filled column fails. Only games StatsAPI flags as
-# neutral may be listed. Neutral games not listed here (Tokyo 778563/778564, Bristol 776907,
+# A listed column must be either empty for the whole game or pass the normal rules (COLUMN_FLOORS):
+# partly filled below its floor fails. Only games StatsAPI flags as neutral, in that season's
+# schedule, may be listed. Neutral games not listed here (Tokyo 778563/778564, Bristol 776907,
 # 824705 at Tropicana Field) have full coverage and get the normal rules; a new relocated game with
 # gaps therefore fails and has to be measured and added here.
 _NO_BAT_ALIGN_ARM = frozenset(BAT_TRACKING) | {"if_fielding_alignment", "of_fielding_alignment", "arm_angle"}
@@ -381,8 +405,9 @@ def _empty_by_game(df: pd.DataFrame, cols: list[str]) -> pd.Series:
 def incomplete_games(df: pd.DataFrame, allowed_empty: set[str]) -> pd.DataFrame:
     """Games with >= GAME_CHECK_MIN_PITCHES pitches that are below a share floor or have a kept column
     empty on every pitch of the game (a partly backfilled day passes the whole-day check).
-    Games in NEUTRAL_GAPS may have their listed columns empty for the whole game; if bat_speed is
-    empty for the whole game the bat_share floor does not apply, otherwise it does (partial fails)."""
+    Games in NEUTRAL_GAPS may have their listed columns empty for the whole game. Every
+    COLUMN_FLOORS column that is not empty on every pitch of the game must be filled on at least its
+    floor share of the applicable pitches (partial fails, listed or not)."""
     g = game_shares(df)
     # Days since/until are legitimately empty in each team's first/last game, whatever the date;
     # the whole-day check still covers them. Game-level optional columns never have to be filled.
@@ -392,14 +417,32 @@ def incomplete_games(df: pd.DataFrame, allowed_empty: set[str]) -> pd.DataFrame:
     gaps = [NEUTRAL_GAPS.get(int(pk), (frozenset(), None)) for pk in g["game_pk"]]
     g["listed"] = [int(pk) in NEUTRAL_GAPS for pk in g["game_pk"]]
     g["empty_columns"] = [[c for c in empty[pk] if c not in gap[0]] for pk, gap in zip(g["game_pk"], gaps)]
-    no_bat = [("bat_speed" in gap[0]) and ("bat_speed" in empty[pk]) for pk, gap in zip(g["game_pk"], gaps)]
+    g["partial_columns"] = [partial_columns(df[df["game_pk"].astype("int64") == pk]) for pk in g["game_pk"]]
     xw_floor = [GAME_FLOORS["xwoba_share"] if gap[1] is None else gap[1] for gap in gaps]
-    g = g.assign(no_bat=no_bat, xw_floor=xw_floor)
+    g = g.assign(xw_floor=xw_floor)
     g = g[g["pitches"] >= GAME_CHECK_MIN_PITCHES]
-    low = (((g["bat_share"] < GAME_FLOORS["bat_share"]) & ~g["no_bat"]) | (g["xwoba_share"] < g["xw_floor"])
-           | (g["dre_share"] < GAME_FLOORS["dre_share"]))
-    bad = g[low | (g["empty_columns"].str.len() > 0)]
-    return bad[["game_pk", "listed", "pitches", "bat_share", "xwoba_share", "dre_share", "empty_columns"]].round(3)
+    low = (g["xwoba_share"] < g["xw_floor"]) | (g["dre_share"] < GAME_FLOORS["dre_share"])
+    bad = g[low | (g["empty_columns"].str.len() > 0) | (g["partial_columns"].str.len() > 0)]
+    return bad[["game_pk", "listed", "pitches", "bat_share", "xwoba_share", "dre_share", "empty_columns",
+                "partial_columns"]].round(3)
+
+
+def partial_columns(game: pd.DataFrame) -> list[str]:
+    """COLUMN_FLOORS columns filled on some but fewer than their floor share of applicable pitches
+    (a column empty on every pitch of the game is judged by the empty-column rule instead)."""
+    scope = {"swing": game["is_swing"].to_numpy(dtype=bool),
+             "miss": game["description"].isin(["swinging_strike", "swinging_strike_blocked"]).to_numpy(),
+             "thrown": game["pitch_type"].notna().to_numpy(), "all": np.ones(len(game), dtype=bool)}
+    out = []
+    for c, (s, floor) in COLUMN_FLOORS.items():
+        filled = game[c].notna().to_numpy()
+        m = scope[s]
+        if not filled.any() or not m.any():
+            continue
+        share = filled[m].mean()
+        if share < floor:
+            out.append(f"{c} {share:.3f}<{floor}")
+    return out
 
 
 def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Path | None, full: bool):
@@ -507,7 +550,8 @@ def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Pat
     share = float(slim["bat_speed"].notna().mean()) if rows else 0.0
     summary = {"rows": rows, "games": len(pks), "bat_speed_share": share, "key": key,
                "digest": _content_digest(slim) if rows else None,
-               "first_day": per_day.get(start), "last_day": per_day.get(end)}
+               "first_day": per_day.get(start), "last_day": per_day.get(end),
+               "scheduled": set(sched["game_pk"].astype(int))}
     return slim, summary, [f"{year}: {e}" for e in errors]
 
 
@@ -653,6 +697,9 @@ def main() -> int:
         got = {y for y in YEARS if summaries[y]["rows"]}
         if got != set(YEARS):
             failures.append(f"seasons with rows {sorted(got)} != {list(YEARS)}")
+        unscheduled = sorted(set(NEUTRAL_GAPS) - set().union(*(summaries[y]["scheduled"] for y in YEARS)))
+        if unscheduled:
+            failures.append(f"NEUTRAL_GAPS games in no {list(YEARS)} regular-season schedule: {unscheduled}")
         keys = np.concatenate([summaries[y]["key"] for y in YEARS])
         if len(np.unique(keys)) != len(keys):
             failures.append("duplicate pitch_uid across seasons")
