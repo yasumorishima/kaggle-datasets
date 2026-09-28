@@ -26,10 +26,12 @@ Gates (the build fails and writes nothing if any is violated):
   last two), and in every game with at least GAME_CHECK_MIN_PITCHES pitches no kept column is empty
   (runners on base excepted) and the shares of bat_speed on swings, xwOBA on batted balls and
   delta_run_exp are above measured floors, which catches a day or game Savant has not finished
-  backfilling. Neutral-site games (venue is not the home team's home venue per StatsAPI) may lack
-  NEUTRAL_OPTIONAL (bat tracking, alignment, arm angle, spin/extension) and skip the bat/xwOBA
-  floors, and the whole-day check looks only at home-venue games. A full build (or a sample with a
-  season's last days) refuses to start within SETTLE_DAYS of that season's end;
+  backfilling. Neutral-site games (venue is not the home team's home venue per StatsAPI) listed in
+  NEUTRAL_GAPS may have their measured columns empty for the whole game (never partly filled);
+  unlisted neutral games get the normal rules. The whole-day check looks only at home-venue games,
+  so a day with only neutral games (Seoul 2024-03-20/21) is covered by the per-game check alone.
+  A full build (or a sample with a season's last days) refuses to start within SETTLE_DAYS of that
+  season's end;
 - seasons are exactly YEARS; rows per season >= ROW_FLOOR, rows with a pitch_type equal to Savant's
   own season total (group_by=team, which leaves out pitch-clock automatic balls/strikes), and no kept column is empty for the whole season [full build only];
 - the season's first and last regular-season day have rows;
@@ -89,12 +91,36 @@ GAME_OPTIONAL = {"on_1b", "on_2b", "on_3b"}
 BAT_TRACKING = ("bat_speed", "swing_length", "miss_distance", "attack_angle", "attack_direction",
                 "swing_path_tilt", "intercept_ball_minus_batter_pos_x_inches",
                 "intercept_ball_minus_batter_pos_y_inches")
-# Neutral-site games (no permanent Hawk-Eye install) may have these empty for the whole game:
-# measured on Seoul, Mexico City, London, Rickwood, Williamsport, Field of Dreams and Las Vegas
-# 2024-2026 (London 2024 also lacks the four spin/extension columns). Any other empty column fails.
-NEUTRAL_OPTIONAL = set(BAT_TRACKING) | {"if_fielding_alignment", "of_fielding_alignment", "arm_angle",
-                                        "effective_speed", "release_spin_rate", "release_extension",
-                                        "spin_axis"}
+# Neutral-site games without full Hawk-Eye coverage, measured 2026-09-28 game by game:
+# game_pk -> (columns empty on every pitch of that game, xwOBA floor override or None).
+# A listed column must be either empty for the whole game or pass the normal rules (bat_speed then
+# has to meet the bat_share floor): a partly filled column fails. Only games StatsAPI flags as
+# neutral may be listed. Neutral games not listed here (Tokyo 778563/778564, Bristol 776907,
+# 824705 at Tropicana Field) have full coverage and get the normal rules; a new relocated game with
+# gaps therefore fails and has to be measured and added here.
+_NO_BAT_ALIGN_ARM = frozenset(BAT_TRACKING) | {"if_fielding_alignment", "of_fielding_alignment", "arm_angle"}
+_NO_SPIN = frozenset({"effective_speed", "release_spin_rate", "release_extension", "spin_axis"})
+NEUTRAL_GAPS: dict[int, tuple[frozenset, float | None]] = {
+    745444: (_NO_BAT_ALIGN_ARM, None),             # 2024-03-20 Seoul, Gocheok Sky Dome
+    746175: (_NO_BAT_ALIGN_ARM, None),             # 2024-03-21 Seoul
+    746560: (_NO_BAT_ALIGN_ARM, None),             # 2024-04-27 Mexico City, Estadio Alfredo Harp Helu
+    746561: (_NO_BAT_ALIGN_ARM, None),             # 2024-04-28 Mexico City
+    745814: (_NO_BAT_ALIGN_ARM | _NO_SPIN, None),  # 2024-06-08 London Stadium
+    745571: (_NO_BAT_ALIGN_ARM | _NO_SPIN, None),  # 2024-06-09 London Stadium
+    745164: (_NO_BAT_ALIGN_ARM, 0.65),             # 2024-06-20 Rickwood Field (xwOBA share 0.681)
+    746431: (_NO_BAT_ALIGN_ARM, None),             # 2024-08-18 Williamsport, Journey Bank Ballpark
+    776707: (_NO_BAT_ALIGN_ARM, None),             # 2025-08-17 Williamsport
+    825093: (_NO_BAT_ALIGN_ARM, None),             # 2026-04-25 Mexico City
+    825094: (_NO_BAT_ALIGN_ARM, None),             # 2026-04-26 Mexico City
+    824998: (frozenset(BAT_TRACKING), None),       # 2026-06-08 Las Vegas Ballpark
+    824999: (frozenset(BAT_TRACKING), None),       # 2026-06-09 Las Vegas Ballpark
+    824996: (frozenset(BAT_TRACKING), None),       # 2026-06-10 Las Vegas Ballpark
+    824997: (frozenset(BAT_TRACKING), None),       # 2026-06-12 Las Vegas Ballpark
+    824995: (frozenset(BAT_TRACKING), None),       # 2026-06-13 Las Vegas Ballpark
+    824994: (frozenset(BAT_TRACKING), None),       # 2026-06-14 Las Vegas Ballpark
+    823669: (_NO_BAT_ALIGN_ARM, None),             # 2026-08-13 Field of Dreams
+    823745: (_NO_BAT_ALIGN_ARM, None),             # 2026-08-23 Williamsport
+}
 # Savant finishes backfilling a day's derived columns within a day or two; a build for a season
 # that ended less than this many days ago is refused unless --allow-recent is given.
 SETTLE_DAYS = 3
@@ -352,23 +378,28 @@ def _empty_by_game(df: pd.DataFrame, cols: list[str]) -> pd.Series:
     return filled.apply(lambda r: [c for c in cols if not r[c]], axis=1)
 
 
-def incomplete_games(df: pd.DataFrame, allowed_empty: set[str], neutral: set[int] = frozenset()) -> pd.DataFrame:
+def incomplete_games(df: pd.DataFrame, allowed_empty: set[str]) -> pd.DataFrame:
     """Games with >= GAME_CHECK_MIN_PITCHES pitches that are below a share floor or have a kept column
     empty on every pitch of the game (a partly backfilled day passes the whole-day check).
-    Neutral-site games may lack NEUTRAL_OPTIONAL entirely and skip the bat/xwOBA floors."""
+    Games in NEUTRAL_GAPS may have their listed columns empty for the whole game; if bat_speed is
+    empty for the whole game the bat_share floor does not apply, otherwise it does (partial fails)."""
     g = game_shares(df)
     # Days since/until are legitimately empty in each team's first/last game, whatever the date;
     # the whole-day check still covers them. Game-level optional columns never have to be filled.
     skip = set(allowed_empty) | SINCE_COLS | UNTIL_COLS | GAME_OPTIONAL
     cols = [c for c in SAVANT_COLUMNS if c not in skip]
     empty = _empty_by_game(df, cols)
-    g["neutral"] = g["game_pk"].isin(neutral)
-    g["empty_columns"] = [
-        [c for c in empty[pk] if not (nt and c in NEUTRAL_OPTIONAL)] for pk, nt in zip(g["game_pk"], g["neutral"])]
+    gaps = [NEUTRAL_GAPS.get(int(pk), (frozenset(), None)) for pk in g["game_pk"]]
+    g["listed"] = [int(pk) in NEUTRAL_GAPS for pk in g["game_pk"]]
+    g["empty_columns"] = [[c for c in empty[pk] if c not in gap[0]] for pk, gap in zip(g["game_pk"], gaps)]
+    no_bat = [("bat_speed" in gap[0]) and ("bat_speed" in empty[pk]) for pk, gap in zip(g["game_pk"], gaps)]
+    xw_floor = [GAME_FLOORS["xwoba_share"] if gap[1] is None else gap[1] for gap in gaps]
+    g = g.assign(no_bat=no_bat, xw_floor=xw_floor)
     g = g[g["pitches"] >= GAME_CHECK_MIN_PITCHES]
-    low = ((g["bat_share"] < GAME_FLOORS["bat_share"]) | (g["xwoba_share"] < GAME_FLOORS["xwoba_share"])) & ~g["neutral"]
-    bad = g[low | (g["dre_share"] < GAME_FLOORS["dre_share"]) | (g["empty_columns"].str.len() > 0)]
-    return bad[["game_pk", "neutral", "pitches", "bat_share", "xwoba_share", "dre_share", "empty_columns"]].round(3)
+    low = (((g["bat_share"] < GAME_FLOORS["bat_share"]) & ~g["no_bat"]) | (g["xwoba_share"] < g["xw_floor"])
+           | (g["dre_share"] < GAME_FLOORS["dre_share"]))
+    bad = g[low | (g["empty_columns"].str.len() > 0)]
+    return bad[["game_pk", "listed", "pitches", "bat_share", "xwoba_share", "dre_share", "empty_columns"]].round(3)
 
 
 def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Path | None, full: bool):
@@ -379,6 +410,9 @@ def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Pat
     neutral = set(sched.loc[sched["neutral"], "game_pk"].astype(int))
     for r in sched[sched["neutral"]].drop_duplicates("game_pk").itertuples():
         print(f"  neutral site: {r.official_date} {r.game_pk} {r.venue} ({r.state})", flush=True)
+    wrongly_listed = sorted((set(NEUTRAL_GAPS) & set(sched["game_pk"].astype(int))) - neutral)
+    if wrongly_listed:
+        errors.append(f"NEUTRAL_GAPS games that StatsAPI does not flag as neutral: {wrongly_listed}")
     days = [start + timedelta(n) for n in range((end - start).days + 1)]
     game_days = sorted({date.fromisoformat(d) for d in sched["official_date"]})
     first_days, last_days = set(game_days[:2]), set(game_days[-2:])
@@ -413,13 +447,15 @@ def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Pat
                                   "(not backfilled yet?)")
             nd = df[df["game_pk"].astype(int).isin(neutral)]
             if len(nd):
-                gone = _empty_by_game(nd, sorted(NEUTRAL_OPTIONAL))
+                gone = _empty_by_game(nd, [c for c in KEPT if c not in GAME_OPTIONAL | SINCE_COLS | UNTIL_COLS])
                 for pk, cs in gone.items():
-                    print(f"    neutral game {pk}: {len(cs)} allowed columns empty {cs}", flush=True)
-            low = incomplete_games(df, allowed, neutral)
+                    tag = "listed in NEUTRAL_GAPS" if pk in NEUTRAL_GAPS else "not listed: normal rules"
+                    print(f"    neutral game {pk} ({tag}): {len(cs)} columns empty {cs}", flush=True)
+            low = incomplete_games(df, allowed)
             if len(low):
                 errors.append(f"{d}: {len(low)} games below the per-game completeness floors "
-                              f"(not backfilled yet?): {low.head(3).to_dict('records')}")
+                              f"(not backfilled yet?) {low['game_pk'].tolist()}, e.g. "
+                              f"{low.head(3).to_dict('records')}")
             keys.append(_key(df))
             pks.update(df["game_pk"].astype(int).unique().tolist())
             slims.append(df[SLIM].copy())
