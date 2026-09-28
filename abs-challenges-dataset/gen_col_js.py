@@ -133,7 +133,7 @@ API_C = {
 SC_COMMON = {
     "pitches": "pitches", "pa": "plate appearances", "k_percent": "strikeout rate, %",
     "bb_percent": "walk rate, %", "swings": "swings", "takes": "takes (pitches not swung at)",
-    "whiffs": "swinging strikes", "swing_miss_percent": "whiffs / swings, %", "woba": "wOBA",
+    "whiffs": "whiffs (swinging strikes and foul tips)", "swing_miss_percent": "whiffs / swings, %", "woba": "wOBA",
     "xwoba": "expected wOBA", "xba": "expected batting average", "xslg": "expected slugging",
     "launch_speed": "mean exit velocity of batted balls, mph", "launch_angle": "mean launch angle, degrees",
     "hardhit_percent": "share of batted balls at 95+ mph, %", "barrels_per_bbe_percent": "barrels per batted ball, %",
