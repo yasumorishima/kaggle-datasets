@@ -118,8 +118,8 @@
         "intercept_ball_minus_batter_pos_x_inches": "Distance in inches between the bat/ball intercept point and the batter's center of mass, in the x (horizontal) direction.",
         "intercept_ball_minus_batter_pos_y_inches": "Distance in inches between the bat/ball intercept point and the batter's center of mass, in the y (mound-to-plate) direction.",
         "pitch_uid": "Added here: unique pitch id 'game_pk-at_bat_number-pitch_number' (checked unique across all three seasons).",
-        "is_swing": "Added here: the batter swung (description is a swing and miss, a foul of any kind, or hit_into_play). Foul tips and bunt attempts count as swings.",
-        "is_whiff": "Added here: a swing that missed the ball (swinging_strike, swinging_strike_blocked, missed_bunt). Foul tips touch the bat and are not whiffs.",
+        "is_swing": "Added here: the batter swung. True for descriptions swinging_strike, swinging_strike_blocked, missed_bunt, foul_tip, bunt_foul_tip, swinging_pitchout, foul, foul_bunt, foul_pitchout and hit_into_play (daily totals equal Savant's swing counts).",
+        "is_whiff": "Added here: a whiff as Baseball Savant counts it: swinging_strike, swinging_strike_blocked, missed_bunt, foul_tip, bunt_foul_tip and swinging_pitchout. Foul tips count as whiffs, as in Savant's own whiff totals (daily totals checked equal).",
         "in_zone": "Added here: zone is 1-9 (True) or 11-14 (False); empty when zone is empty."
       }
     },
@@ -238,8 +238,8 @@
         "intercept_ball_minus_batter_pos_x_inches": "Distance in inches between the bat/ball intercept point and the batter's center of mass, in the x (horizontal) direction.",
         "intercept_ball_minus_batter_pos_y_inches": "Distance in inches between the bat/ball intercept point and the batter's center of mass, in the y (mound-to-plate) direction.",
         "pitch_uid": "Added here: unique pitch id 'game_pk-at_bat_number-pitch_number' (checked unique across all three seasons).",
-        "is_swing": "Added here: the batter swung (description is a swing and miss, a foul of any kind, or hit_into_play). Foul tips and bunt attempts count as swings.",
-        "is_whiff": "Added here: a swing that missed the ball (swinging_strike, swinging_strike_blocked, missed_bunt). Foul tips touch the bat and are not whiffs.",
+        "is_swing": "Added here: the batter swung. True for descriptions swinging_strike, swinging_strike_blocked, missed_bunt, foul_tip, bunt_foul_tip, swinging_pitchout, foul, foul_bunt, foul_pitchout and hit_into_play (daily totals equal Savant's swing counts).",
+        "is_whiff": "Added here: a whiff as Baseball Savant counts it: swinging_strike, swinging_strike_blocked, missed_bunt, foul_tip, bunt_foul_tip and swinging_pitchout. Foul tips count as whiffs, as in Savant's own whiff totals (daily totals checked equal).",
         "in_zone": "Added here: zone is 1-9 (True) or 11-14 (False); empty when zone is empty."
       }
     },
@@ -358,8 +358,8 @@
         "intercept_ball_minus_batter_pos_x_inches": "Distance in inches between the bat/ball intercept point and the batter's center of mass, in the x (horizontal) direction.",
         "intercept_ball_minus_batter_pos_y_inches": "Distance in inches between the bat/ball intercept point and the batter's center of mass, in the y (mound-to-plate) direction.",
         "pitch_uid": "Added here: unique pitch id 'game_pk-at_bat_number-pitch_number' (checked unique across all three seasons).",
-        "is_swing": "Added here: the batter swung (description is a swing and miss, a foul of any kind, or hit_into_play). Foul tips and bunt attempts count as swings.",
-        "is_whiff": "Added here: a swing that missed the ball (swinging_strike, swinging_strike_blocked, missed_bunt). Foul tips touch the bat and are not whiffs.",
+        "is_swing": "Added here: the batter swung. True for descriptions swinging_strike, swinging_strike_blocked, missed_bunt, foul_tip, bunt_foul_tip, swinging_pitchout, foul, foul_bunt, foul_pitchout and hit_into_play (daily totals equal Savant's swing counts).",
+        "is_whiff": "Added here: a whiff as Baseball Savant counts it: swinging_strike, swinging_strike_blocked, missed_bunt, foul_tip, bunt_foul_tip and swinging_pitchout. Foul tips count as whiffs, as in Savant's own whiff totals (daily totals checked equal).",
         "in_zone": "Added here: zone is 1-9 (True) or 11-14 (False); empty when zone is empty."
       }
     },
@@ -368,7 +368,7 @@
       "columns": {
         "batter": "MLBAM id of the batter (join to the pitch data's batter and players.player_id).",
         "batter_name": "Batter's full name (StatsAPI).",
-        "pa": "Plate appearances: pitches with a non-empty events value.",
+        "pa": "Plate appearances: pitches with a non-empty events value other than truncated_pa (a plate appearance cut short when the half-inning or game ended during it).",
         "tracked_swings": "Swings with a bat_speed value.",
         "avg_bat_speed": "Mean bat_speed over every tracked swing (mph).",
         "competitive_swings": "Savant's 'competitive' swings: the fastest 90% of the batter's tracked swings in the season, plus any 60+ mph swing with a 90+ mph exit velocity.",
@@ -378,12 +378,14 @@
         "avg_attack_direction": "Mean attack_direction over tracked swings (degrees).",
         "avg_swing_path_tilt": "Mean swing_path_tilt over tracked swings (degrees).",
         "game_year": "Season.",
-        "pitches": "Regular-season pitches in the pitch-level data for this player and season.",
+        "pitches": "Rows in the pitch-level data for this player and season, including pitch-clock automatic balls/strikes (no pitch thrown; see automatic_calls).",
         "swings": "Pitches with is_swing.",
         "whiffs": "Pitches with is_whiff.",
         "zone_pitches": "Pitches with in_zone = True (zone 1-9).",
         "chase_pitches": "Pitches with in_zone = False (zone 11-14).",
+        "automatic_calls": "Pitch-clock automatic balls and strikes (description automatic_ball / automatic_strike): counted in pitches, but no pitch was thrown.",
         "batted_balls": "Balls in play (type = X).",
+        "batted_balls_with_ev": "Balls in play with a launch_speed (the denominator of hard_hit_rate).",
         "avg_exit_velocity": "Mean launch_speed of balls in play, mph.",
         "hard_hit": "Balls in play with launch_speed >= 95 mph.",
         "xwoba_on_contact": "Mean estimated_woba_using_speedangle over balls in play.",
@@ -391,7 +393,7 @@
         "zone_swing_rate": "Swings at in-zone pitches / zone_pitches. Empty when the denominator is 0.",
         "chase_rate": "Swings at out-of-zone pitches / chase_pitches. Empty when the denominator is 0.",
         "zone_rate": "zone_pitches / (zone_pitches + chase_pitches). Empty when the denominator is 0.",
-        "hard_hit_rate": "hard_hit / batted_balls. Empty when the denominator is 0.",
+        "hard_hit_rate": "hard_hit / batted_balls_with_ev. Empty when the denominator is 0.",
         "woba": "Sum of woba_value / sum of woba_denom. Empty when the denominator is 0."
       }
     },
@@ -400,20 +402,22 @@
       "columns": {
         "pitcher": "MLBAM id of the pitcher (join to the pitch data's pitcher and players.player_id).",
         "pitcher_name": "Pitcher's full name (StatsAPI).",
-        "batters_faced": "Plate appearances: pitches with a non-empty events value.",
+        "batters_faced": "Plate appearances: pitches with a non-empty events value other than truncated_pa (a plate appearance cut short when the half-inning or game ended during it).",
         "called_strikes": "Pitches with description = called_strike.",
-        "csw_rate": "(called_strikes + whiffs) / pitches.",
+        "csw_rate": "(called_strikes + whiffs) / (pitches - automatic_calls).",
         "four_seam_pitches": "Four-seam fastballs (pitch_type FF) with a release_speed.",
         "avg_four_seam_velocity": "Mean release_speed of four-seam fastballs (mph).",
         "tracked_swings_against": "Swings against the pitcher with a bat_speed value.",
         "avg_bat_speed_against": "Mean bat_speed of the swings against the pitcher (mph).",
         "game_year": "Season.",
-        "pitches": "Regular-season pitches in the pitch-level data for this player and season.",
+        "pitches": "Rows in the pitch-level data for this player and season, including pitch-clock automatic balls/strikes (no pitch thrown; see automatic_calls).",
         "swings": "Pitches with is_swing.",
         "whiffs": "Pitches with is_whiff.",
         "zone_pitches": "Pitches with in_zone = True (zone 1-9).",
         "chase_pitches": "Pitches with in_zone = False (zone 11-14).",
+        "automatic_calls": "Pitch-clock automatic balls and strikes (description automatic_ball / automatic_strike): counted in pitches, but no pitch was thrown.",
         "batted_balls": "Balls in play (type = X).",
+        "batted_balls_with_ev": "Balls in play with a launch_speed (the denominator of hard_hit_rate).",
         "avg_exit_velocity": "Mean launch_speed of balls in play allowed, mph.",
         "hard_hit": "Balls in play with launch_speed >= 95 mph.",
         "xwoba_on_contact": "Mean estimated_woba_using_speedangle over balls in play.",
@@ -421,7 +425,7 @@
         "zone_swing_rate": "Swings at in-zone pitches / zone_pitches. Empty when the denominator is 0.",
         "chase_rate": "Swings at out-of-zone pitches / chase_pitches. Empty when the denominator is 0.",
         "zone_rate": "zone_pitches / (zone_pitches + chase_pitches). Empty when the denominator is 0.",
-        "hard_hit_rate": "hard_hit / batted_balls. Empty when the denominator is 0.",
+        "hard_hit_rate": "hard_hit / batted_balls_with_ev. Empty when the denominator is 0.",
         "woba": "Sum of woba_value / sum of woba_denom. Empty when the denominator is 0."
       }
     },

@@ -23,7 +23,10 @@ Gates (the build fails and writes nothing if any is violated):
   integer columns hold integers, zone in 1-9/11-14;
 - on days with at least NULL_CHECK_MIN_ROWS pitches, no kept column is empty for the whole day
   (except days-since-previous-game on the season's first two days and days-until-next-game on its
-  last two), which catches a day Savant has not finished backfilling;
+  last two), and in every game with at least GAME_CHECK_MIN_PITCHES pitches no kept column is empty
+  (runners on base excepted) and the shares of bat_speed on swings, xwOBA on batted balls and
+  delta_run_exp are above measured floors, which catches a day or game Savant has not finished
+  backfilling; the build also refuses to start within SETTLE_DAYS of a season's end;
 - seasons are exactly YEARS; rows per season >= ROW_FLOOR, rows with a pitch_type equal to Savant's
   own season total (group_by=team, which leaves out pitch-clock automatic balls/strikes), and no kept column is empty for the whole season [full build only];
 - the season's first and last regular-season day have rows;
@@ -71,6 +74,18 @@ BAT_FLOOR_2026 = 0.40
 # A real day has at most ~5,500 pitches; anything near this means a truncated or wrong answer.
 DAY_MAX = 25_000
 NULL_CHECK_MIN_ROWS = 200
+# Per game (games with >= GAME_CHECK_MIN_PITCHES pitches), a day Savant has only partly processed
+# shows up as games with few of these filled. Floors set below the minimum over every game of
+# complete days: over 114 games of 100+ pitches on 10 processed days (2024-06-26, 07-10, 08-26,
+# 09-30, 2025-03-18, 09-28, 2026-03-26, 09-23, 09-24, 09-26) the minima were bat_speed on swings
+# 0.624 (1st percentile 0.844), xwOBA on batted balls 0.840 (0.944), delta_run_exp 0.955 (0.968).
+GAME_CHECK_MIN_PITCHES = 100
+GAME_FLOORS = {"bat_share": 0.50, "xwoba_share": 0.75, "dre_share": 0.90}
+# Columns that can be empty for a whole game by chance (on_3b was, in 3 of 128 games measured).
+GAME_OPTIONAL = {"on_1b", "on_2b", "on_3b"}
+# Savant finishes backfilling a day's derived columns within a day or two; a build for a season
+# that ended less than this many days ago is refused unless --allow-recent is given.
+SETTLE_DAYS = 3
 
 # Savant's statcast_search CSV header (type=details), as of 2026-09-28.
 SAVANT_COLUMNS = (
@@ -120,8 +135,12 @@ UNTIL_COLS = {"pitcher_days_until_next_game", "batter_days_until_next_game"}
 
 # Pitch descriptions. A swing is any pitch the batter offered at; a whiff is a swing that missed
 # the ball. Foul tips touch the bat, so they are swings but not whiffs.
-WHIFF = {"swinging_strike", "swinging_strike_blocked", "missed_bunt", "swinging_pitchout"}
-CONTACT = {"foul", "foul_tip", "foul_bunt", "bunt_foul_tip", "foul_pitchout", "hit_into_play"}
+# Whiffs follow Savant's own count (group_by=name `whiffs`), which includes foul tips: checked equal
+# on 2024-06-26 and 2024-08-26.
+WHIFF = {"swinging_strike", "swinging_strike_blocked", "missed_bunt", "foul_tip", "bunt_foul_tip",
+         "swinging_pitchout"}
+CONTACT = {"foul", "foul_bunt", "foul_pitchout", "hit_into_play"}
+AUTOMATIC = {"automatic_ball", "automatic_strike"}  # pitch-clock calls, no pitch thrown
 TAKE = {"ball", "blocked_ball", "called_strike", "hit_by_pitch", "pitchout", "intent_ball",
         "automatic_ball", "automatic_strike"}
 SWING = WHIFF | CONTACT
@@ -168,7 +187,8 @@ def _get(url: str, params: dict | None = None, timeout: int = 300) -> requests.R
             else:
                 r.raise_for_status()
                 return r
-        except (requests.ConnectionError, requests.Timeout) as e:
+        except (requests.ConnectionError, requests.Timeout, requests.exceptions.ChunkedEncodingError,
+                requests.exceptions.ContentDecodingError) as e:
             last = f"{type(e).__name__}: {e}"
         if wait is None:
             break
@@ -289,6 +309,37 @@ def _content_digest(slim: pd.DataFrame) -> str:
     return hashlib.sha256(np.sort(h).tobytes()).hexdigest()
 
 
+def game_shares(df: pd.DataFrame) -> pd.DataFrame:
+    """Per game: bat_speed on swings, xwOBA on batted balls, delta_run_exp on pitches (non-null shares)."""
+    g = pd.DataFrame({
+        "game_pk": df["game_pk"].astype("int64"),
+        "swing": df["is_swing"], "bat": df["is_swing"] & df["bat_speed"].notna(),
+        "bip": df["type"] == "X", "xw": (df["type"] == "X") & df["estimated_woba_using_speedangle"].notna(),
+        "dre": df["delta_run_exp"].notna(),
+    }).groupby("game_pk").agg(pitches=("swing", "size"), swings=("swing", "sum"), bat=("bat", "sum"),
+                              bip=("bip", "sum"), xw=("xw", "sum"), dre=("dre", "sum"))
+    g["bat_share"] = g["bat"] / g["swings"].where(g["swings"] > 0)
+    g["xwoba_share"] = g["xw"] / g["bip"].where(g["bip"] > 0)
+    g["dre_share"] = g["dre"] / g["pitches"]
+    return g.reset_index()
+
+
+def incomplete_games(df: pd.DataFrame, allowed_empty: set[str]) -> pd.DataFrame:
+    """Games with >= GAME_CHECK_MIN_PITCHES pitches that are below a share floor or have a kept column
+    empty on every pitch of the game (a partly backfilled day passes the whole-day check)."""
+    g = game_shares(df)
+    # Days since/until are legitimately empty in each team's first/last game, whatever the date;
+    # the whole-day check still covers them. Game-level optional columns never have to be filled.
+    skip = set(allowed_empty) | SINCE_COLS | UNTIL_COLS | GAME_OPTIONAL
+    cols = [c for c in SAVANT_COLUMNS if c not in skip]
+    empty = df[cols].notna().groupby(df["game_pk"].astype("int64")).any()
+    g["empty_columns"] = g["game_pk"].map(empty.apply(lambda r: [c for c in cols if not r[c]], axis=1))
+    g = g[g["pitches"] >= GAME_CHECK_MIN_PITCHES]
+    bad = g[(g["bat_share"] < GAME_FLOORS["bat_share"]) | (g["xwoba_share"] < GAME_FLOORS["xwoba_share"])
+            | (g["dre_share"] < GAME_FLOORS["dre_share"]) | (g["empty_columns"].str.len() > 0)]
+    return bad[["game_pk", "pitches", "bat_share", "xwoba_share", "dre_share", "empty_columns"]].round(3)
+
+
 def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Path | None, full: bool):
     """Fetch, check and write one season. Returns (slim frame, summary dict, errors)."""
     errors: list[str] = []
@@ -318,12 +369,16 @@ def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Pat
             if not len(df):
                 continue
             nonnull += df[SAVANT_COLUMNS].notna().sum()
+            allowed = set(DROPPED_EMPTY) | (SINCE_COLS if d in first_days else set()) | (
+                UNTIL_COLS if d in last_days else set())
             if len(df) >= NULL_CHECK_MIN_ROWS:
-                allowed = set(DROPPED_EMPTY) | (SINCE_COLS if d in first_days else set()) | (
-                    UNTIL_COLS if d in last_days else set())
                 empty = [c for c in SAVANT_COLUMNS if c not in allowed and df[c].isna().all()]
                 if empty:
                     errors.append(f"{d}: {len(df)} pitches but empty {empty} (not backfilled yet?)")
+            low = incomplete_games(df, allowed)
+            if len(low):
+                errors.append(f"{d}: {len(low)} games below the per-game completeness floors "
+                              f"(not backfilled yet?): {low.head(3).to_dict('records')}")
             keys.append(_key(df))
             pks.update(df["game_pk"].astype(int).unique().tolist())
             slims.append(df[SLIM].copy())
@@ -385,7 +440,9 @@ def _rate(num, den):
 
 def batter_table(s: pd.DataFrame) -> pd.DataFrame:
     s = s.copy()
-    s["pa"] = s["events"].notna()
+    # events == truncated_pa marks a plate appearance cut short (the half-inning or game ended during it).
+    s["pa"] = s["events"].notna() & (s["events"] != "truncated_pa")
+    s["auto"] = s["description"].isin(AUTOMATIC)
     s["bip"] = s["type"] == "X"
     s["ev"] = s["launch_speed"].where(s["bip"])
     s["hard"] = s["bip"] & (s["launch_speed"] >= 95)
@@ -404,13 +461,13 @@ def batter_table(s: pd.DataFrame) -> pd.DataFrame:
     comp = t[t["competitive"]].groupby(["batter", "game_year"]).agg(
         competitive_swings=("bat_speed", "size"), avg_bat_speed_competitive=("bat_speed", "mean"))
     out = s.groupby(["batter", "game_year"]).agg(
-        pitches=("description", "size"), pa=("pa", "sum"), swings=("is_swing", "sum"),
+        pitches=("description", "size"), automatic_calls=("auto", "sum"), pa=("pa", "sum"), swings=("is_swing", "sum"),
         whiffs=("is_whiff", "sum"), zone_pitches=("zin", "sum"), zone_swings=("zsw", "sum"),
         chase_pitches=("zout", "sum"), chase_swings=("osw", "sum"),
         tracked_swings=("bat_speed", "count"), avg_bat_speed=("bat_speed", "mean"),
         avg_swing_length=("swing_length", "mean"), avg_attack_angle=("attack_angle", "mean"),
         avg_attack_direction=("attack_direction", "mean"), avg_swing_path_tilt=("swing_path_tilt", "mean"),
-        batted_balls=("bip", "sum"), avg_exit_velocity=("ev", "mean"), hard_hit=("hard", "sum"),
+        batted_balls=("bip", "sum"), batted_balls_with_ev=("ev", "count"), avg_exit_velocity=("ev", "mean"), hard_hit=("hard", "sum"),
         xwoba_on_contact=("xw", "mean"), woba_value=("woba_value", "sum"), woba_denom=("woba_denom", "sum"),
     ).join(comp).reset_index()
     out["competitive_swings"] = out["competitive_swings"].fillna(0).astype("int64")
@@ -419,7 +476,9 @@ def batter_table(s: pd.DataFrame) -> pd.DataFrame:
 
 def pitcher_table(s: pd.DataFrame) -> pd.DataFrame:
     s = s.copy()
-    s["pa"] = s["events"].notna()
+    # events == truncated_pa marks a plate appearance cut short (the half-inning or game ended during it).
+    s["pa"] = s["events"].notna() & (s["events"] != "truncated_pa")
+    s["auto"] = s["description"].isin(AUTOMATIC)
     s["bip"] = s["type"] == "X"
     s["ev"] = s["launch_speed"].where(s["bip"])
     s["hard"] = s["bip"] & (s["launch_speed"] >= 95)
@@ -431,15 +490,15 @@ def pitcher_table(s: pd.DataFrame) -> pd.DataFrame:
     s["zout"] = s["in_zone"] == False  # noqa: E712
     s["ff"] = s["release_speed"].where(s["pitch_type"] == "FF")
     out = s.groupby(["pitcher", "game_year"]).agg(
-        pitches=("description", "size"), batters_faced=("pa", "sum"), swings=("is_swing", "sum"),
+        pitches=("description", "size"), automatic_calls=("auto", "sum"), batters_faced=("pa", "sum"), swings=("is_swing", "sum"),
         whiffs=("is_whiff", "sum"), called_strikes=("cs", "sum"), zone_pitches=("zin", "sum"),
         zone_swings=("zsw", "sum"), chase_pitches=("zout", "sum"), chase_swings=("osw", "sum"),
         four_seam_pitches=("ff", "count"), avg_four_seam_velocity=("ff", "mean"),
         tracked_swings_against=("bat_speed", "count"), avg_bat_speed_against=("bat_speed", "mean"),
-        batted_balls=("bip", "sum"), avg_exit_velocity=("ev", "mean"), hard_hit=("hard", "sum"),
+        batted_balls=("bip", "sum"), batted_balls_with_ev=("ev", "count"), avg_exit_velocity=("ev", "mean"), hard_hit=("hard", "sum"),
         xwoba_on_contact=("xw", "mean"), woba_value=("woba_value", "sum"), woba_denom=("woba_denom", "sum"),
     ).reset_index()
-    out["csw_rate"] = _rate(out["called_strikes"] + out["whiffs"], out["pitches"])
+    out["csw_rate"] = _rate(out["called_strikes"] + out["whiffs"], out["pitches"] - out["automatic_calls"])
     return _finish(out, "pitcher")
 
 
@@ -448,7 +507,7 @@ def _finish(out: pd.DataFrame, who: str) -> pd.DataFrame:
     out["zone_swing_rate"] = _rate(out["zone_swings"], out["zone_pitches"])
     out["chase_rate"] = _rate(out["chase_swings"], out["chase_pitches"])
     out["zone_rate"] = _rate(out["zone_pitches"], out["zone_pitches"] + out["chase_pitches"])
-    out["hard_hit_rate"] = _rate(out["hard_hit"], out["batted_balls"])
+    out["hard_hit_rate"] = _rate(out["hard_hit"], out["batted_balls_with_ev"])
     out["woba"] = _rate(out["woba_value"], out["woba_denom"])
     out = out.drop(columns=["woba_value", "woba_denom", "zone_swings", "chase_swings"])
     for c in out.columns:
@@ -488,8 +547,16 @@ def main() -> int:
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--days", help="comma-separated YYYY-MM-DD: a sample build (season-total gates skipped)")
     ap.add_argument("--cache", type=Path, help="keep/reuse Savant's raw day files here (tests only)")
+    ap.add_argument("--allow-recent", action="store_true",
+                    help=f"build even if a season ended less than {SETTLE_DAYS} days ago (the gates still apply)")
     args = ap.parse_args()
 
+    for y in YEARS:
+        end = season_dates(y)[1]
+        if date.today() < end + timedelta(SETTLE_DAYS) and not args.allow_recent:
+            print(f"{y} regular season ended {end}; Savant may still be backfilling its last days. "
+                  f"Refusing to build before {end + timedelta(SETTLE_DAYS)} (override: --allow-recent).")
+            return 1
     only = {date.fromisoformat(x) for x in args.days.split(",")} if args.days else None
     full = only is None
     if args.cache:
