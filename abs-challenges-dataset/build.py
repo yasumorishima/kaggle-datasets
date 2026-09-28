@@ -7,8 +7,9 @@ Source: Baseball Savant's ABS challenge leaderboard, read through savant-extras 
 and raises if Savant answers with a season or level other than the one asked for.
 
 Every (level, season, game type, challenger) board is fetched with min_challenges=0, so players
-who had challenge opportunities but never challenged are listed too. The build fails, writing
-nothing, if any gate below is violated.
+who had challenge opportunities but never challenged are listed too. enrich.py then adds per-player
+columns (bio, season stats, Statcast aggregates) for each board's own level, season and game type.
+The build fails, writing nothing, if any gate below or in enrich.py is violated.
 """
 
 from __future__ import annotations
@@ -28,6 +29,8 @@ import pandas as pd
 import requests
 import savant_extras as sx
 from savant_extras._http import EmptySavantResponse
+
+import enrich
 
 CHALLENGERS = ("batter", "pitcher", "catcher")
 # (level, season, game type) boards that must have rows. MLB tested the system in 2025 spring
@@ -52,6 +55,11 @@ SHARED_KEY = ["player_id", "n_total_sample", "n_challenges", "n_overturns"]
 SLEEP = 1.0
 RETRIES = 3
 
+# Bio columns from enrich.py, carried into the bridge table once (they do not depend on the season).
+BIO_COLS = ("bats", "throws", "birth_date", "height_in", "weight_lb", "primary_position",
+            "mlb_debut_date", "birth_country")
+# enrich.py columns carried into the bridge table from each side (batters and catchers only).
+ENRICH_PREFIXES = ("api_bat_", "api_c_", "sc_bat_", "sc_c_")
 # Columns carried into the bridge table, from each side.
 BRIDGE_COLS = (
     "team_abbr", "parent_org", "n_total_sample", "n_challenges", "n_overturns", "n_fails",
@@ -114,6 +122,10 @@ def check_board(key: tuple, df: pd.DataFrame) -> list[str]:
     return errs
 
 
+def _side_cols(df: pd.DataFrame) -> list[str]:
+    return [*BRIDGE_COLS, "age", *[c for c in df.columns if c.startswith(ENRICH_PREFIXES)]]
+
+
 def build_bridge(boards: dict) -> pd.DataFrame:
     frames = []
     for challenger in ("batter", "catcher"):
@@ -121,12 +133,20 @@ def build_bridge(boards: dict) -> pd.DataFrame:
         b = boards[("mlb", 2026, "R", challenger)]
         a = a[a["n_total_sample"] > 0]
         b = b[b["n_total_sample"] > 0]
-        left = a[["player_id", "player_name", *BRIDGE_COLS]].rename(columns={c: f"{c}_aaa2025" for c in BRIDGE_COLS})
-        right = b[["player_id", *BRIDGE_COLS]].rename(columns={c: f"{c}_mlb2026" for c in BRIDGE_COLS})
+        ca, cb = _side_cols(a), _side_cols(b)
+        left = a[["player_id", "player_name", *ca]].rename(columns={c: f"{c}_aaa2025" for c in ca})
+        right = b[["player_id", *BIO_COLS, *cb]].rename(columns={c: f"{c}_mlb2026" for c in cb})
         j = left.merge(right, on="player_id", how="inner", validate="one_to_one")
         j.insert(0, "challenge_type", challenger)
         frames.append(j)
-    return pd.concat(frames, ignore_index=True)
+    out = pd.concat(frames, ignore_index=True)
+    # Order: identity, bio, then each side's columns in the players table's order.
+    ref = [*BRIDGE_COLS, "age"] + [c for c in pd.concat(list(boards.values())).columns if c.startswith(ENRICH_PREFIXES)]
+    ref = list(dict.fromkeys(ref))
+    side = [f"{c}_{sfx}" for sfx in ("aaa2025", "mlb2026") for c in ref if f"{c}_{sfx}" in out.columns]
+    order = ["challenge_type", "player_id", "player_name", *BIO_COLS, *side]
+    assert set(order) == set(out.columns), sorted(set(out.columns) ^ set(order))
+    return out[order]
 
 
 def main() -> int:
@@ -168,6 +188,11 @@ def main() -> int:
         print("\n".join(["", "Gates failed, nothing written:"] + failures))
         return 1
 
+    boards, errs = enrich.enrich(boards)
+    if errs:
+        print("\n".join(["", "Enrichment gates failed, nothing written:"] + errs))
+        return 1
+
     players = pd.concat(boards.values(), ignore_index=True)
     bridge = build_bridge(boards)
     n_bridge = {c: int((bridge["challenge_type"] == c).sum()) for c in BRIDGE_MIN}
@@ -182,7 +207,8 @@ def main() -> int:
         "abs_aaa2025_to_mlb2026.csv": bridge,
     }
     counts = {"players": len(players), "bridge_batters": n_bridge["batter"],
-              "bridge_catchers": n_bridge["catcher"], "columns": players.shape[1]}
+              "bridge_catchers": n_bridge["catcher"], "columns": players.shape[1],
+              "bridge_columns": bridge.shape[1]}
     for key, df in boards.items():
         level, year, game_type, challenger = key
         counts[f"{level}{year}{game_type}_{challenger}"] = len(df)

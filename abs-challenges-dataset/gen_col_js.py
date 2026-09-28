@@ -99,6 +99,85 @@ for c in AGAINST:
         text += "." if "(empty when" not in BASE[c] else "; also " + BASE[c][BASE[c].index("(empty when") + 1:-2].replace("_gained", "_gained_against").replace("opps is", "opps_against is").replace("no challenges", "no such challenges") + "."
     BASE[c + "_against"] = text
 
+# Columns added by enrich.py (player bio, season stats and Statcast aggregates for the same level,
+# season and game type as the row's board). Formulas stated here are computed by enrich.py itself.
+LVL = "for the row's level, season and game type"
+BIO = {
+    "bats": "Batting side from MLB StatsAPI: R, L or S (switch).",
+    "throws": "Throwing hand from MLB StatsAPI: R or L.",
+    "birth_date": "Date of birth (YYYY-MM-DD) from MLB StatsAPI.",
+    "age": "Age on June 30 of the row's season, from birth_date.",
+    "height_in": "Listed height in inches (MLB StatsAPI).",
+    "weight_lb": "Listed weight in pounds (MLB StatsAPI).",
+    "primary_position": "Primary position abbreviation from MLB StatsAPI (P, C, 1B, 2B, 3B, SS, LF, CF, RF, OF, DH, ...).",
+    "mlb_debut_date": "MLB debut date from MLB StatsAPI; empty if the player has not debuted.",
+    "birth_country": "Country of birth from MLB StatsAPI.",
+}
+API_BAT = {
+    "g": "games", "pa": "plate appearances", "ab": "at-bats", "h": "hits", "2b": "doubles",
+    "3b": "triples", "hr": "home runs", "so": "strikeouts", "bb": "walks", "hbp": "hit by pitch",
+    "sb": "stolen bases", "avg": "batting average", "obp": "on-base percentage",
+    "slg": "slugging percentage", "ops": "OBP + SLG", "pitches": "pitches seen",
+}
+API_PIT = {
+    "g": "games pitched", "gs": "games started", "outs": "outs recorded", "bf": "batters faced",
+    "so": "strikeouts", "bb": "walks", "hbp": "hit batters", "hr": "home runs allowed", "era": "ERA",
+    "whip": "WHIP", "strike_pct": "share of pitches that were strikes, as a fraction 0-1",
+    "pitches": "pitches thrown", "wp": "wild pitches", "ip": "innings pitched as a decimal (outs / 3)",
+}
+API_C = {
+    "g": "games at catcher", "innings": "innings at catcher as a decimal (12.1 in box-score notation = 12.333)",
+    "sb": "stolen bases allowed", "cs": "runners caught stealing", "cs_pct": "caught-stealing share, 0-1",
+    "pb": "passed balls", "wp": "wild pitches while catching", "catcher_era": "ERA of pitchers while this player caught",
+}
+SC_COMMON = {
+    "pitches": "pitches", "pa": "plate appearances", "k_percent": "strikeout rate, %",
+    "bb_percent": "walk rate, %", "swings": "swings", "takes": "takes (pitches not swung at)",
+    "whiffs": "swinging strikes", "swing_miss_percent": "whiffs / swings, %", "woba": "wOBA",
+    "xwoba": "expected wOBA", "xba": "expected batting average", "xslg": "expected slugging",
+    "launch_speed": "mean exit velocity of batted balls, mph", "launch_angle": "mean launch angle, degrees",
+    "hardhit_percent": "share of batted balls at 95+ mph, %", "barrels_per_bbe_percent": "barrels per batted ball, %",
+    "run_exp": "Savant's run_exp summed over the pitches (Statcast run-value change; positive is good for the batting side)",
+    "oz_pitches": "pitches outside the strike zone (Statcast zones 11-14)",
+    "oz_swings": "swings at pitches outside the zone", "oz_whiffs": "whiffs on pitches outside the zone",
+    "iz_pitches": "pitches inside the strike zone (Statcast zones 1-9)",
+    "iz_swings": "swings at pitches inside the zone", "iz_whiffs": "whiffs on pitches inside the zone",
+    "zone_tracked_percent": "(oz_pitches + iz_pitches) / pitches, %: share of pitches with a Statcast zone (about 2/3 in MLB 2025 spring, 99%+ elsewhere)",
+    "chase_percent": "oz_swings / oz_pitches, %", "zone_swing_percent": "iz_swings / iz_pitches, %",
+    "zone_contact_percent": "(1 - iz_whiffs / iz_swings), %", "chase_contact_percent": "(1 - oz_whiffs / oz_swings), %",
+}
+SC_C = {
+    "pitches_received": "pitches caught (Statcast fielder_2)", "takes_received": "takes on those pitches",
+    "oz_takes": "takes outside the zone (zones 11-14)", "oz_called_strikes": "of those, called strikes",
+    "iz_takes": "takes inside the zone (zones 1-9)", "iz_called_balls": "of those, called balls",
+    "oz_called_strike_percent": "oz_called_strikes / oz_takes, %",
+    "iz_called_ball_percent": "iz_called_balls / iz_takes, %",
+    "zone_tracked_percent": "(oz_takes + iz_takes) / takes_received, %: share of takes with a Statcast zone",
+}
+NEW = dict(BIO)
+for k, v in API_BAT.items():
+    NEW[f"api_bat_{k}"] = f"MLB StatsAPI hitting {LVL}: {v}. Batter and catcher boards."
+for k, v in API_PIT.items():
+    NEW[f"api_pit_{k}"] = f"MLB StatsAPI pitching {LVL}: {v}. Pitcher boards."
+for k, v in API_C.items():
+    NEW[f"api_c_{k}"] = f"MLB StatsAPI fielding at C {LVL}: {v}. Catcher boards."
+for k, v in SC_COMMON.items():
+    NEW[f"sc_bat_{k}"] = f"Statcast search {LVL}, as the batter: {v}. Batter boards."
+    NEW[f"sc_pit_{k}"] = f"Statcast search {LVL}, against the pitcher: {v}. Pitcher boards."
+for k, v in SC_C.items():
+    NEW[f"sc_c_{k}"] = f"Statcast search {LVL}, as the catcher: {v}. Catcher boards; zone calls as recorded by Statcast."
+NEW.update({
+    "api_bat_woba": "MLB 2026 regular season only: wOBA from MLB StatsAPI sabermetrics.",
+    "api_bat_wrc_plus": "MLB 2026 regular season only: wRC+ from MLB StatsAPI sabermetrics.",
+    "api_bat_war": "MLB 2026 regular season only: batter WAR from MLB StatsAPI sabermetrics.",
+    "api_pit_war": "MLB 2026 regular season only: pitcher WAR from MLB StatsAPI sabermetrics.",
+    "api_pit_fip": "MLB 2026 regular season only: FIP from MLB StatsAPI sabermetrics.",
+    "api_pit_xfip": "MLB 2026 regular season only: xFIP from MLB StatsAPI sabermetrics.",
+    "sc_c_framing_runs": "MLB 2026 regular season only: framing runs (rv_tot) from Savant's catcher-framing leaderboard (qualified catchers only; empty for others).",
+    "sc_c_framing_strike_rate": "MLB 2026 regular season only: pct_tot from Savant's catcher-framing leaderboard (strike rate on the pitches it scores), 0-1.",
+})
+BASE.update(NEW)
+
 BRIDGE_COLS = [
     "team_abbr", "parent_org", "n_total_sample", "n_challenges", "n_overturns", "n_fails",
     "rate_challenges", "rate_overturns", "exp_chal", "exp_rate_overturns", "overturns_vs_exp",
@@ -111,9 +190,20 @@ BRIDGE = {
     "player_id": BASE["player_id"],
     "player_name": BASE["player_name"],
 }
+for c in BIO:
+    if c != "age":  # age depends on the season: age_aaa2025 / age_mlb2026
+        BRIDGE[c] = BIO[c]
+# Only on MLB 2026 regular-season rows, so only on the _mlb2026 side of the bridge.
+MLB2026_ONLY = {"api_bat_woba", "api_bat_wrc_plus", "api_bat_war", "sc_c_framing_runs", "sc_c_framing_strike_rate"}
+BRIDGE_ENRICH = ["age"] + [c for c in NEW if c.startswith(("api_bat_", "api_c_", "sc_bat_", "sc_c_"))]
 for sfx, where in (("aaa2025", "Triple-A 2025 regular season"), ("mlb2026", "MLB 2026 regular season")):
     for c in BRIDGE_COLS:
         BRIDGE[f"{c}_{sfx}"] = f"{where}: {BASE[c]}" + (" (column names refer to abs_challenges_players.csv)" if c in FORMULA_COLS else "")
+    for c in BRIDGE_ENRICH:
+        if sfx == "aaa2025" and c in MLB2026_ONLY:
+            continue
+        text = NEW[c].replace(" " + LVL, "").replace("MLB 2026 regular season only: ", "")
+        BRIDGE[f"{c}_{sfx}"] = f"{where}: {text}"
 
 TEMPLATE = HERE.parent / "savant-extras-dataset" / "col_arm_strength.js"
 
@@ -141,6 +231,8 @@ def main() -> None:
 SOURCES = (
     "Baseball Savant ABS challenge leaderboard (MLB Advanced Media): "
     "https://baseballsavant.mlb.com/leaderboard/abs-challenges . "
+    "Player columns: MLB StatsAPI (https://statsapi.mlb.com, /people and season stats) and "
+    "Baseball Savant Statcast search (https://baseballsavant.mlb.com/statcast_search) and catcher-framing leaderboard. "
     "Collected with savant-extras 0.6.0 (https://pypi.org/project/savant-extras/) by build.py in "
     "https://github.com/yasumorishima/kaggle-datasets (abs-challenges-dataset), which fails without "
     "writing anything unless every gate in the dataset description passes."
