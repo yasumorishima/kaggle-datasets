@@ -72,6 +72,26 @@ def test_hyper_speed_rule() -> None:
         assert b.hyper_speed_error(_hyper(rows)), rows
 
 
+def test_in_previous_version_refers_to_version1() -> None:
+    # The carried players.csv is the latest version; flags must not depend on it.
+    bio = {i: {"fullName": str(i), "lastName": str(i)} for i in (547874, 672960, 660271)}
+    eligible = {(547874, 2015, "pitcher"): {"teams": ["SEA"]}, (672960, 2026, "batter"): {"teams": ["TOR"]},
+                (660271, 2026, "batter"): {"teams": ["LAD"]}}
+    for _ in range(1):
+        t = b.players_table(bio, eligible).set_index("mlbam_id")
+        assert t.loc[547874, "in_previous_version"] == "yes"  # Iwakuma, wrong id 461325 in version 1
+        assert t.loc[547874, "previous_wrong_id"] == 461325
+        assert t.loc[660271, "in_previous_version"] == "yes"
+        assert t.loc[672960, "in_previous_version"] == "no"  # Okamoto, new in 2026
+
+
+def test_corrections_text_names_the_players() -> None:
+    text = b.corrections_text()
+    assert "?" not in text
+    assert text == ("Hisashi Iwakuma: 461325 (that id is Tyler Clippard) -> 547874; "
+                    "Yuki Matsui: 680686 (that id is Josiah Gray) -> 673513")
+
+
 if __name__ == "__main__":
     n = 0
     for name, fn in list(globals().items()):
