@@ -18,7 +18,6 @@ import argparse
 import datetime as dt
 import json
 import re
-import shutil
 import sys
 import time
 import warnings
@@ -228,8 +227,6 @@ def main() -> int:
     for name, df in files.items():
         df.to_csv(args.out / name, index=False)
         print(f"{name}: {df.shape}")
-    for p in sorted(args.meta.parent.glob("*.txt")):
-        shutil.copy2(p, args.out / p.name)
     (args.out / "dataset-metadata.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"wrote {len(files)} CSVs and dataset-metadata.json to {args.out}")
     return 0
