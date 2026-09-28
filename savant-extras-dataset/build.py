@@ -72,6 +72,12 @@ def _per_year(fn, years, **kwargs) -> pd.DataFrame:
     frames = []
     for y in years:
         df = _paced(fn, y, **kwargs)
+        # A `season` column (park_factors) must be the season asked for; `year` replaces it.
+        if "season" in df.columns:
+            got = set(pd.to_numeric(df["season"], errors="coerce").dropna().astype(int))
+            if got != {y}:
+                raise SystemExit(f"{fn.__name__}: asked for {y}, got seasons {sorted(got)}")
+            df = df.drop(columns="season")
         # Always overwrite: Savant sometimes returns a `year` column that is empty.
         df["year"] = y
         frames.append(df)
@@ -186,6 +192,33 @@ def _slice_digest(df: pd.DataFrame) -> str:
     return hashlib.sha256("\n".join(rows).encode()).hexdigest()
 
 
+# Keys for the near-duplicate check, first match wins.
+KEYS = (("pitcher_id", "pitch_type"), ("player_id",), ("resp_fielder_id",), ("pitcher",), ("entity_id",), ("id",), ("team",), ("name",))
+NEAR_SHARED = 0.9   # share of the smaller season's keys also present in the other season
+NEAR_EQUAL = 0.9    # share of those shared keys whose numeric columns all agree
+
+
+def _near_same(a: pd.DataFrame, b: pd.DataFrame) -> str | None:
+    """Savant revises past seasons a little, so a season answered with another season's table can
+    differ from it in a few cells. Two seasons of a real leaderboard share many players but almost
+    never the same numbers for most of them; flag that."""
+    key = next((list(k) for k in KEYS if all(c in a.columns for c in k)), None)
+    if key is None:
+        return None
+    num = [c for c in a.columns if c not in SEASON_COLS and c not in key and pd.api.types.is_numeric_dtype(a[c])]
+    if not num:
+        return None
+    a = a.drop_duplicates(key).set_index(key)[num].round(3)
+    b = b.drop_duplicates(key).set_index(key)[num].round(3)
+    shared = a.index.intersection(b.index)
+    if len(shared) < NEAR_SHARED * min(len(a), len(b)):
+        return None
+    same = ((a.loc[shared] == b.loc[shared]) | (a.loc[shared].isna() & b.loc[shared].isna())).all(axis=1)
+    if same.mean() > NEAR_EQUAL:
+        return f"{same.mean():.0%} of {len(shared)} shared {'/'.join(key)} have identical numbers"
+    return None
+
+
 def check(name: str, df: pd.DataFrame) -> list[str]:
     errors = []
     want = years_of(name)
@@ -205,6 +238,10 @@ def check(name: str, df: pd.DataFrame) -> list[str]:
     for a, b in itertools.combinations(sorted(digests), 2):
         if digests[a] == digests[b]:
             errors.append(f"{a} and {b} are the same table")
+        else:
+            near = _near_same(parts[a], parts[b])
+            if near:
+                errors.append(f"{a} and {b} are nearly the same table: {near}")
     if name == "pitch_movement":
         for y in want:
             missing = CORE_PITCH_TYPES - set(df.loc[seasons == y, "pitch_type"])
