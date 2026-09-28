@@ -59,6 +59,8 @@ VERSION1_IDS = frozenset({400085, 461325, 493114, 493117, 493128, 493157, 493159
 # Wrong ids in the previous players.csv -> the player's real id.
 CORRECTED = {461325: 547874, 680686: 673513}
 CORRECTED_NOTE = {461325: "Tyler Clippard", 680686: "Josiah Gray"}
+# The player version 1 meant by each wrong id (fixed: the carried players.csv no longer has these ids).
+CORRECTED_NAME = {461325: "Hisashi Iwakuma", 680686: "Yuki Matsui"}
 # Player-season-roles missing from the previous version; the description says they are now included.
 RESTORED = ((660271, 2025, "pitcher"), (506433, 2016, "pitcher"), (673633, 2020, "pitcher"),
             (685503, 2022, "pitcher"), (493128, 2016, "batter"))
@@ -278,6 +280,10 @@ def hyper_speed_error(df: pd.DataFrame) -> str | None:
     return None
 
 
+def corrections_text() -> str:
+    return "; ".join(f"{CORRECTED_NAME[w]}: {w} (that id is {CORRECTED_NOTE[w]}) -> {r}" for w, r in CORRECTED.items())
+
+
 def old_ids_errors(old_ids: set[int], new_ids: set[int]) -> list[str]:
     errs = []
     for i in sorted(old_ids):
@@ -324,7 +330,7 @@ def summary_row(bio: dict, key: tuple, e: dict, rows: int | None) -> dict:
     return row
 
 
-def players_table(bio: dict, eligible: dict, old_ids: set[int]) -> pd.DataFrame:
+def players_table(bio: dict, eligible: dict) -> pd.DataFrame:
     back = {v: k for k, v in CORRECTED.items()}
     first = {}
     for pid, y, _ in eligible:
@@ -407,7 +413,6 @@ def main() -> int:
 
 
 def build(args, only, settings, old, bio, eligible, failures, stage) -> int:
-    old_ids = set(old["mlbam_id"].astype(int))
     columns = None
     seen_keys = {role: set() for role in ROLES}
     games: dict[tuple[int, str], dict[str, int]] = {}
@@ -451,7 +456,7 @@ def build(args, only, settings, old, bio, eligible, failures, stage) -> int:
         written[role] += len(df)
         del df
 
-    players = players_table(bio, eligible, old_ids)
+    players = players_table(bio, eligible)
     players.to_csv(stage / PLAYERS_FILE, index=False)
     summary = pd.DataFrame([summary_row(bio, k, eligible[k], rows_by_key.get(k)) for k in sorted(eligible)])
     summary.to_csv(stage / SUMMARY_FILE, index=False)
@@ -473,7 +478,6 @@ def build(args, only, settings, old, bio, eligible, failures, stage) -> int:
         print("\n".join(["", f"Gates failed ({len(failures)}), nothing written:"] + failures))
         return 1
 
-    old_names = dict(zip(old["mlbam_id"].astype(int), old["name"]))
     new_players = players[players["in_previous_version"] == "no"]
     is_pitcher = players["primary_position"].isin(["P", "TWP"])
     pit_names = players.loc[is_pitcher, "name"].tolist()
@@ -496,8 +500,7 @@ def build(args, only, settings, old, bio, eligible, failures, stage) -> int:
         "n_columns": f"{len(columns) + 1 if columns else 0}",
         "new_players": ", ".join(f"{r.name} ({r.mlbam_id}; {r.seasons.replace(',', ', ')})"
                                  for r in new_players.itertuples()) or "none",
-        "corrections": "; ".join(f"{old_names.get(w, '?')}: {w} (that id is {CORRECTED_NOTE[w]}) -> {r}"
-                                 for w, r in CORRECTED.items()),
+        "corrections": corrections_text(),
         "heritage": " and ".join(HERITAGE.values()),
     }
     for role in ROLES:
