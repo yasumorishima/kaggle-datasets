@@ -216,7 +216,7 @@
       }
     },
     "home_runs.csv": {
-      "description": "Home runs per batter and season with park-adjusted expected HR, no-doubters, mostly-gone and doubters, and trot time. Baseball Savant's home run leaderboard has no season-type filter and counts postseason home runs: 2024 and 2025 include their postseason, 2026 includes postseason games played up to the build date (the 2026 postseason began 2026-09-28).",
+      "description": "Home runs per batter and season with park-adjusted expected HR, no-doubters, mostly-gone and doubters, and trot time. Baseball Savant's home run leaderboard has no season-type filter and counts postseason home runs: 2024 and 2025 include their postseason, 2026 includes postseason games played up to the build date (the 2026 postseason began 2026-09-29).",
       "columns": {
         "player": "Player full name (Last, First).",
         "player_id": "MLB Advanced Media player ID.",

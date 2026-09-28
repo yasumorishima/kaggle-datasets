@@ -147,11 +147,11 @@ def _pitch_tempo(df: pd.DataFrame) -> pd.DataFrame:
     the place of the runners-on median. In every row checked (2024-2026) the repeated columns hold
     the same values as the first ones, i.e. the export carries no runners-on median. Drop the
     copies; if Savant ever fills the second one with different values, keep it under its real name."""
-    if "total_pitches.1" in df.columns and (df["total_pitches.1"] == df["total_pitches"]).all():
+    if "total_pitches.1" in df.columns and df["total_pitches.1"].equals(df["total_pitches"]):
         df = df.drop(columns="total_pitches.1")
     if "median_seconds_empty.1" not in df.columns:
         return df
-    if (df["median_seconds_empty.1"] == df["median_seconds_empty"]).all():
+    if df["median_seconds_empty.1"].equals(df["median_seconds_empty"]):
         return df.drop(columns="median_seconds_empty.1")
     return df.rename(columns={"median_seconds_empty.1": "median_seconds_onbase"})
 
@@ -331,6 +331,14 @@ def main() -> int:
     left = re.findall(r"\{rows:[a-z_]+\}|\{build_date\}", desc)
     if left:
         print(f"description placeholders with no table: {left}")
+        return 1
+    # The column descriptions entered on Kaggle come from settings.json; a column Savant renamed or
+    # added would otherwise ship with a stale or missing description.
+    described = json.loads((args.meta.parent / "settings.json").read_text(encoding="utf-8"))["files"]
+    drift = [f"{n}.csv: built {list(df.columns)} != settings.json {list(described.get(n + '.csv', {}).get('columns', {}))}"
+             for n, df in tables.items() if list(df.columns) != list(described.get(n + ".csv", {}).get("columns", {}))]
+    if drift:
+        print("\n".join(["columns differ from settings.json:"] + drift))
         return 1
     missing = [n for n in tables if f"`{n}.csv`" not in desc]
     if missing:
