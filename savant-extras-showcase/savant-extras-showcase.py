@@ -1,121 +1,136 @@
 # %% [markdown]
 # # savant-extras: All Baseball Savant Leaderboards in One Package
 #
-# **[savant-extras](https://github.com/yasumorishima/savant-extras)** provides 20+ Baseball Savant leaderboards that [pybaseball](https://github.com/jldbc/pybaseball) doesn't support — all as simple one-line function calls returning DataFrames.
+# **[savant-extras](https://github.com/yasumorishima/savant-extras)** turns Baseball Savant leaderboards that [pybaseball](https://github.com/jldbc/pybaseball) doesn't cover into one-line function calls returning DataFrames: bat tracking, pitch tempo, arm strength, catcher stance, baserunning, park factors, **ABS challenges** and **Triple-A pitch-level Statcast**.
 #
-# This notebook demonstrates every leaderboard with visualizations using **2024–2025 season data**.
+# This notebook calls every leaderboard live for the **2024, 2025 and 2026 regular seasons** (2026 ended on September 27) and draws one chart from each.
 #
 # ```
-# pip install savant-extras
+# pip install "savant-extras>=0.6.0"
 # ```
+#
+# **Why 0.6.0 matters.** Baseball Savant ignores query parameters it does not recognise and then answers with *the current season*. Up to 0.5.0 several functions sent parameter names Savant no longer reads, so asking for 2024 quietly returned 2026. 0.6.0 sends the parameters Savant reads and checks the season it gets back. Section 0 shows how to check this yourself.
+#
+# The same leaderboards are published as CSVs, with build-time checks, in the dataset **[Baseball Savant Leaderboards (2024-2026)](https://www.kaggle.com/datasets/yasunorim/baseball-savant-leaderboards-2024)**, attached to this notebook.
 
 # %% [markdown]
 # ## Setup
 
 # %%
-!pip install -q savant-extras pybaseball
+!pip install -q "savant-extras>=0.6.0"
 
-import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.ticker as mticker
-import seaborn as sns
-import warnings
+import io
 import time
+import warnings
+
+import matplotlib.pyplot as plt
+import pandas as pd
+import requests
+import seaborn as sns
+import savant_extras as sx
 
 sns.set_theme(style="whitegrid")
-warnings.filterwarnings("ignore")
+plt.rcParams.update({"axes.titlesize": 16, "axes.labelsize": 14, "legend.fontsize": 12})
+warnings.filterwarnings("ignore", category=FutureWarning)
+print("savant-extras", sx.__version__)
 
-YEARS = [2024, 2025]
-YEAR = 2025   # used for single-year visualizations
-TOP_N = 20    # top N players for bar charts
+YEARS = [2024, 2025, 2026]
+YEAR = 2026   # single-season charts
+TOP_N = 15
 
-def coerce_numeric(df):
-    """Convert columns that look numeric but are stored as object dtype."""
-    for col in df.columns:
-        if df[col].dtype == object:
-            converted = pd.to_numeric(df[col], errors="coerce")
-            if converted.notna().sum() > df[col].notna().sum() * 0.5:
-                df[col] = converted
-    return df
 
-def fetch_years(fn, year_col="year", sleep_sec=1.0, **kwargs):
-    """Call fn(year, **kwargs) for each year in YEARS and concatenate."""
+def fetch_years(fn, years=YEARS, sleep_sec=1.0, **kwargs):
+    """Call fn(year, **kwargs) for each season and stack the results with a `year` column.
+
+    `year` is always written from the request: some Savant tables return an empty `year`
+    column, and some have none.
+    """
     frames = []
-    for i, y in enumerate(YEARS):
-        if i > 0:
+    for i, y in enumerate(years):
+        if i:
             time.sleep(sleep_sec)
         df = fn(y, **kwargs)
-        df = coerce_numeric(df)
-        if year_col not in df.columns:
-            df[year_col] = y
+        df["year"] = y
         frames.append(df)
     return pd.concat(frames, ignore_index=True)
+
+
+def savant_csv(url):
+    """A Savant leaderboard CSV endpoint that savant-extras does not wrap."""
+    r = requests.get(url, timeout=60)
+    r.raise_for_status()
+    return pd.read_csv(io.StringIO(r.content.decode("utf-8-sig")))
+
+
+def barh(ax, df, label, value, title, xlabel, palette="crest", n=TOP_N, smallest=False):
+    top = (df.nsmallest if smallest else df.nlargest)(n, value)
+    ax.barh(top[label], top[value], color=sns.color_palette(palette, len(top)))
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.invert_yaxis()
+
+# %% [markdown]
+# ---
+# ## 0. Is each season really a different season?
+#
+# A leaderboard that silently returned the current season would give the same table for every year. A quick check: drop the columns that only name the season and compare what is left.
+
+# %%
+SEASON_COLS = ["year", "start_year", "end_year"]
+
+def same_table(df, a, b, key):
+    """True when seasons a and b hold the same rows once the columns naming the season are dropped."""
+    def part(y):
+        d = df[df.year == y].drop(columns=[c for c in SEASON_COLS if c in df.columns])
+        return d.sort_values(key).reset_index(drop=True)
+    x, y = part(a), part(b)
+    return x.shape == y.shape and x.equals(y)
+
+df_cb = fetch_years(sx.catcher_blocking)
+for a, b in [(2024, 2025), (2025, 2026), (2024, 2026)]:
+    print(f"catcher_blocking {a} vs {b}: same table = {same_table(df_cb, a, b, 'player_id')}")
+df_cb.groupby("year").size()
 
 # %% [markdown]
 # ---
 # ## 1. Bat Tracking (2024+)
-# Bat speed, attack angle, swing tilt — with custom date ranges.
+# Bat speed, attack angle and swing tilt over any date range. Here each regular season, minimum 100 competitive swings.
 
 # %%
-from savant_extras import bat_tracking
-
-bat_frames = []
-for y in YEARS:
-    df_tmp = bat_tracking(f"{y}-04-01", f"{y}-09-30", min_swings=100)
-    df_tmp = coerce_numeric(df_tmp)
-    df_tmp["year"] = y
-    bat_frames.append(df_tmp)
-df_bat = pd.concat(bat_frames, ignore_index=True)
-print(f"Bat Tracking: {len(df_bat)} player-seasons")
+SEASONS = {2024: ("2024-03-20", "2024-09-30"), 2025: ("2025-03-18", "2025-09-28"), 2026: ("2026-03-25", "2026-09-27")}
+frames = []
+for y, (start, end) in SEASONS.items():
+    d = sx.bat_tracking(start, end, min_swings=100)
+    d["year"] = y
+    frames.append(d)
+    time.sleep(1)
+df_bat = pd.concat(frames, ignore_index=True)
+print(df_bat.groupby("year").size())
 df_bat.head()
 
 # %%
-fig, ax = plt.subplots(figsize=(10, 6))
-top = df_bat[df_bat["year"] == YEAR].nlargest(TOP_N, "avg_bat_speed")
-ax.barh(top["name"], top["avg_bat_speed"], color=sns.color_palette("rocket", TOP_N))
-ax.set_xlabel("Average Bat Speed (mph)", fontsize=14)
-ax.set_title(f"Top {TOP_N} Bat Speed — {YEAR}", fontsize=16)
-ax.invert_yaxis()
-plt.tight_layout()
-plt.show()
-
-# %%
-fig, ax = plt.subplots(figsize=(8, 6))
-ax.scatter(df_bat["avg_bat_speed"], df_bat["attack_angle"], alpha=0.4, s=15, c=df_bat["year"], cmap="coolwarm")
-ax.set_xlabel("Average Bat Speed (mph)", fontsize=14)
-ax.set_ylabel("Attack Angle (°)", fontsize=14)
-ax.set_title(f"Bat Speed vs Attack Angle — 2024–2025", fontsize=16)
+fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+barh(axes[0], df_bat[df_bat.year == YEAR], "name", "avg_bat_speed",
+     f"Fastest average bat speed, {YEAR}", "Average bat speed (mph)", "rocket")
+axes[0].set_xlim(df_bat.avg_bat_speed.quantile(0.5), None)
+sns.kdeplot(data=df_bat, x="avg_bat_speed", hue="year", ax=axes[1], palette="viridis", common_norm=False)
+axes[1].set_title("Bat speed by season")
+axes[1].set_xlabel("Average bat speed (mph)")
 plt.tight_layout()
 plt.show()
 
 # %% [markdown]
 # ---
 # ## 2. Pitch Tempo (2010+)
-# Pace metrics — median seconds between pitches, hot/warm/cold frequency.
+# Median seconds between pitches, bases empty.
 
 # %%
-from savant_extras import pitch_tempo
-
-df_tempo = fetch_years(pitch_tempo)
-print(f"Pitch Tempo: {len(df_tempo)} pitcher-seasons")
-df_tempo.head()
-
-# %%
-fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-
-fastest = df_tempo[df_tempo["year"] == YEAR].nsmallest(TOP_N, "median_seconds_empty")
-axes[0].barh(fastest["entity_name"], fastest["median_seconds_empty"],
-             color=sns.color_palette("YlOrRd_r", TOP_N))
-axes[0].set_xlabel("Median Seconds (Bases Empty)", fontsize=14)
-axes[0].set_title(f"Fastest Tempo — {YEAR}", fontsize=16)
-axes[0].invert_yaxis()
-
-axes[1].hist(df_tempo[df_tempo["year"] == YEAR]["median_seconds_empty"].dropna(),
-             bins=30, color="steelblue", edgecolor="white")
-axes[1].set_xlabel("Median Seconds (Bases Empty)", fontsize=14)
-axes[1].set_ylabel("Count", fontsize=14)
-axes[1].set_title(f"Pitch Tempo Distribution — {YEAR}", fontsize=16)
-
+df_tempo = fetch_years(sx.pitch_tempo)
+fig, ax = plt.subplots(figsize=(9, 5.5))
+sns.boxplot(data=df_tempo, x="year", y="median_seconds_empty", ax=ax, color="#4C72B0")
+ax.set_title("Seconds between pitches, bases empty")
+ax.set_xlabel("")
+ax.set_ylabel("Median seconds")
 plt.tight_layout()
 plt.show()
 
@@ -125,612 +140,335 @@ plt.show()
 # Fielder throw speed by position.
 
 # %%
-from savant_extras import arm_strength
-
-df_arm = fetch_years(arm_strength, min_throws=50)
-print(f"Arm Strength: {len(df_arm)} fielder-seasons")
-df_arm.head()
-
-# %%
-fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-
-top_arm = df_arm[df_arm["year"] == YEAR].nlargest(TOP_N, "max_arm_strength")
-axes[0].barh(top_arm["fielder_name"], top_arm["max_arm_strength"],
-             color=sns.color_palette("flare", TOP_N))
-axes[0].set_xlabel("Max Arm Strength (mph)", fontsize=14)
-axes[0].set_title(f"Top {TOP_N} Max Throw Speed — {YEAR}", fontsize=16)
-axes[0].invert_yaxis()
-
+df_arm = fetch_years(sx.arm_strength)
+# primary_position is the scorer's position number
+POS = {3: "1B", 4: "2B", 5: "3B", 6: "SS", 7: "LF", 8: "CF", 9: "RF"}
 pos_order = ["RF", "CF", "LF", "SS", "3B", "2B", "1B"]
-pos_data = df_arm[(df_arm["year"] == YEAR) & df_arm["primary_position"].isin(pos_order)]
-sns.boxplot(data=pos_data, x="primary_position", y="arm_overall",
-            order=pos_order, ax=axes[1], palette="Set2")
-axes[1].set_xlabel("Position", fontsize=14)
-axes[1].set_ylabel("Arm Strength Overall (mph)", fontsize=14)
-axes[1].set_title(f"Arm Strength by Position — {YEAR}", fontsize=16)
-
+d = df_arm[df_arm.year == YEAR].assign(primary_position=lambda x: x.primary_position.map(POS)).dropna(subset=["primary_position"])
+fig, ax = plt.subplots(figsize=(10, 5.5))
+sns.boxplot(data=d, x="primary_position", y="arm_overall", order=pos_order, ax=ax, color="#55A868")
+ax.set_title(f"Arm strength by position, {YEAR}")
+ax.set_xlabel("Position")
+ax.set_ylabel("Arm strength (mph)")
 plt.tight_layout()
 plt.show()
 
 # %% [markdown]
 # ---
 # ## 4. Batted Ball Profile
-# Ground ball, fly ball, line drive rates and pull/oppo splits.
+# Ground ball, fly ball, line drive rates and pull / straight / oppo splits.
 
 # %%
-from savant_extras import batted_ball
-
-df_bb = fetch_years(batted_ball)
-print(f"Batted Ball: {len(df_bb)} batter-seasons")
-df_bb.head()
-
-# %%
-fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-
-bb25 = df_bb[df_bb["year"] == YEAR]
-axes[0].scatter(bb25["gb_rate"], bb25["fb_rate"], alpha=0.5, s=20, color="teal")
-axes[0].set_xlabel("Ground Ball Rate", fontsize=14)
-axes[0].set_ylabel("Fly Ball Rate", fontsize=14)
-axes[0].set_title(f"GB Rate vs FB Rate — {YEAR}", fontsize=16)
-
-axes[1].hist(bb25["pull_rate"].dropna(), bins=25, color="coral", edgecolor="white")
-axes[1].set_xlabel("Pull Rate", fontsize=14)
-axes[1].set_ylabel("Count", fontsize=14)
-axes[1].set_title(f"Pull Rate Distribution — {YEAR}", fontsize=16)
-
+df_bb = fetch_years(sx.batted_ball)
+d = df_bb[df_bb.year == YEAR]
+fig, ax = plt.subplots(figsize=(9, 6))
+ax.scatter(d.pull_air_rate, d.gb_rate, alpha=0.6, s=25, color="teal")
+ax.set_title(f"Pulled fly balls vs ground balls, {YEAR}")
+ax.set_xlabel("Pulled air-ball rate")
+ax.set_ylabel("Ground-ball rate")
 plt.tight_layout()
 plt.show()
 
 # %% [markdown]
 # ---
 # ## 5. Home Runs
-# HR distance, exit velocity, expected HR, no-doubters.
+# HR totals against park-adjusted expected HR, and no-doubters. Savant's home run leaderboard has no season-type filter, so it counts postseason home runs too.
 
 # %%
-from savant_extras import home_runs
-
-df_hr = fetch_years(home_runs)
-print(f"Home Runs: {len(df_hr)} batter-seasons")
-df_hr.head()
-
-# %%
-fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-
-hr25 = df_hr[df_hr["year"] == YEAR]
-top_nd = hr25.nlargest(TOP_N, "no_doubters")
-axes[0].barh(top_nd["player"], top_nd["no_doubters"],
-             color=sns.color_palette("magma", TOP_N))
-axes[0].set_xlabel("No-Doubter Home Runs", fontsize=14)
-axes[0].set_title(f"Top {TOP_N} No-Doubters — {YEAR}", fontsize=16)
-axes[0].invert_yaxis()
-
-axes[1].scatter(hr25["xhr"], hr25["hr_total"], alpha=0.5, s=20, color="purple")
-lims = [0, hr25[["xhr", "hr_total"]].max().max() + 5]
-axes[1].plot(lims, lims, "--", color="gray", alpha=0.5)
-axes[1].set_xlabel("Expected HR (xHR)", fontsize=14)
-axes[1].set_ylabel("Actual HR", fontsize=14)
-axes[1].set_title(f"HR vs xHR — {YEAR}", fontsize=16)
-
+df_hr = fetch_years(sx.home_runs)
+d = df_hr[df_hr.year == YEAR]
+fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+barh(axes[0], d, "player", "no_doubters", f"Most no-doubter home runs, {YEAR}", "No-doubters", "magma")
+axes[1].scatter(d.xhr, d.hr_total, alpha=0.5, s=20, color="purple")
+lim = d[["xhr", "hr_total"]].max().max() + 3
+axes[1].plot([0, lim], [0, lim], "--", color="gray")
+axes[1].set_title(f"Home runs vs expected, {YEAR}")
+axes[1].set_xlabel("Expected HR (park-adjusted)")
+axes[1].set_ylabel("Actual HR")
 plt.tight_layout()
 plt.show()
 
 # %% [markdown]
 # ---
 # ## 6. Pitch Movement
-# Horizontal and vertical break by pitch type.
+# Savant serves **one pitch type per request** (an empty type returns four-seamers only), so loop over the types.
 
 # %%
-from savant_extras import pitch_movement
+PITCH_TYPES = ["FF", "SI", "FC", "SL", "ST", "SV", "CU", "CH", "FS"]
+frames = []
+for pt in PITCH_TYPES:
+    d = sx.pitch_movement(YEAR, pitch_type=pt)
+    if len(d):
+        frames.append(d)
+    time.sleep(1)
+df_pm = pd.concat(frames, ignore_index=True)
+print(df_pm.pitch_type.value_counts())
 
-df_pm = fetch_years(pitch_movement)
-print(f"Pitch Movement: {len(df_pm)} pitcher-pitch-season combos")
-df_pm.head()
-
-# %%
 fig, ax = plt.subplots(figsize=(10, 8))
-pitch_types = ["FF", "SL", "CU", "CH", "SI", "FC", "ST", "SV"]
-colors = sns.color_palette("Set1", len(pitch_types))
-pm25 = df_pm[df_pm["year"] == YEAR]
-
-for pt, color in zip(pitch_types, colors):
-    sub = pm25[pm25["pitch_type"] == pt]
-    if len(sub) > 0:
-        ax.scatter(sub["pitcher_break_x"], sub["pitcher_break_z"],
-                   alpha=0.3, s=10, color=color, label=pt)
-
-ax.set_xlabel("Horizontal Break (in)", fontsize=14)
-ax.set_ylabel("Vertical Break (in)", fontsize=14)
-ax.set_title(f"Pitch Movement by Type — {YEAR}", fontsize=16)
-ax.legend(title="Pitch Type", markerscale=3)
+for pt, color in zip(PITCH_TYPES, sns.color_palette("tab10", len(PITCH_TYPES))):
+    s = df_pm[df_pm.pitch_type == pt]
+    ax.scatter(s.pitcher_break_x, s.pitcher_break_z, s=10, alpha=0.4, color=color, label=pt)
 ax.axhline(0, color="gray", lw=0.5)
 ax.axvline(0, color="gray", lw=0.5)
+ax.set_title(f"Pitch movement by type, {YEAR}")
+ax.set_xlabel("Horizontal break (in)")
+ax.set_ylabel("Vertical break, with gravity (in)")
+ax.legend(title="Pitch type", markerscale=3, ncol=3)
 plt.tight_layout()
 plt.show()
 
 # %% [markdown]
 # ---
 # ## 7. Swing & Take Run Value
-# Run values by zone: heart, shadow, chase, waste.
+# Run value by attack zone. Savant's default list is the 300 batters who saw the most pitches.
 
 # %%
-from savant_extras import swing_take
-
-df_st = fetch_years(swing_take)
-df_st = coerce_numeric(df_st)
-print(f"Swing & Take: {len(df_st)} batter-seasons")
-df_st.head()
-
-# %%
-st25 = df_st[df_st["year"] == YEAR]
-if len(st25) > 0 and "runs_all" in st25.columns:
-    fig, ax = plt.subplots(figsize=(10, 6))
-    top_st = st25.nlargest(TOP_N, "runs_all")
-    ax.barh(top_st["last_name, first_name"], top_st["runs_all"],
-            color=sns.color_palette("viridis", TOP_N))
-    ax.set_xlabel("Total Run Value (Swing + Take)", fontsize=14)
-    ax.set_title(f"Top {TOP_N} Swing & Take Run Value — {YEAR}", fontsize=16)
-    ax.invert_yaxis()
-    plt.tight_layout()
-    plt.show()
-else:
-    print("swing_take: no data available (known issue with Baseball Savant API)")
+df_st = fetch_years(sx.swing_take)
+d = df_st[df_st.year == YEAR]
+fig, ax = plt.subplots(figsize=(10, 6))
+barh(ax, d, "last_name, first_name", "runs_all", f"Swing/take run value, {YEAR}", "Runs", "viridis")
+plt.tight_layout()
+plt.show()
 
 # %% [markdown]
 # ---
 # ## 8. Pitcher Arm Angle
-# Release point angles and positions.
 
 # %%
-from savant_extras import pitcher_arm_angle
-
-df_angle = fetch_years(pitcher_arm_angle)
-print(f"Pitcher Arm Angle: {len(df_angle)} pitcher-seasons")
-df_angle.head()
-
-# %%
-fig, ax = plt.subplots(figsize=(8, 6))
-ax.hist(df_angle[df_angle["year"] == YEAR]["ball_angle"].dropna(),
-        bins=30, color="dodgerblue", edgecolor="white")
-ax.set_xlabel("Ball Angle (°)", fontsize=14)
-ax.set_ylabel("Count", fontsize=14)
-ax.set_title(f"Pitcher Arm Angle Distribution — {YEAR}", fontsize=16)
+df_angle = fetch_years(sx.pitcher_arm_angle)
+fig, ax = plt.subplots(figsize=(9, 5.5))
+for (y, g), c in zip(df_angle.groupby("year"), sns.color_palette("viridis", 3)):
+    ax.hist(g.ball_angle.dropna(), bins=30, alpha=0.45, color=c, label=str(y))
+ax.set_title("Pitcher arm angle")
+ax.set_xlabel("Arm angle (degrees)")
+ax.set_ylabel("Pitchers")
+ax.legend()
 plt.tight_layout()
 plt.show()
 
 # %% [markdown]
 # ---
-# ## 9. Running Game (Pitcher)
-# Pitcher's ability to control the running game.
+# ## 9. Running Game (pitchers) and 10. Catcher Throwing
 
 # %%
-from savant_extras import running_game
-
-df_rg = fetch_years(running_game)
-print(f"Running Game: {len(df_rg)} pitcher-seasons")
-df_rg.head()
-
-# %%
-fig, ax = plt.subplots(figsize=(10, 6))
-top_rg = df_rg[df_rg["year"] == YEAR].nlargest(TOP_N, "runs_prevented_on_running_attr")
-ax.barh(top_rg["player_name"], top_rg["runs_prevented_on_running_attr"],
-        color=sns.color_palette("crest", TOP_N))
-ax.set_xlabel("Runs Prevented on Running", fontsize=14)
-ax.set_title(f"Top {TOP_N} Pitchers — Running Game — {YEAR}", fontsize=16)
-ax.invert_yaxis()
+df_rg = fetch_years(sx.running_game)
+df_ct = fetch_years(sx.catcher_throwing)
+fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+barh(axes[0], df_rg[df_rg.year == YEAR], "player_name", "runs_prevented_on_running_attr",
+     f"Pitchers: runs prevented on the bases, {YEAR}", "Runs prevented")
+barh(axes[1], df_ct[df_ct.year == YEAR], "player_name", "pop_time",
+     f"Catchers: fastest pop time, {YEAR}", "Pop time to 2B (s)", "YlOrRd_r", smallest=True)
+axes[1].set_xlim(df_ct.pop_time.min() - 0.03, None)
 plt.tight_layout()
 plt.show()
 
 # %% [markdown]
 # ---
-# ## 10. Catcher Blocking
-# Blocks above average, PB/WP prevention.
+# ## 11. Catcher Blocking and 12. Catcher Stance
+# One row per catcher: how often they set up with a knee down, and the value of their blocking.
 
 # %%
-from savant_extras import catcher_blocking
-
-df_cb = fetch_years(catcher_blocking)
-print(f"Catcher Blocking: {len(df_cb)} catcher-seasons")
-df_cb.head()
-
-# %%
-fig, ax = plt.subplots(figsize=(10, 6))
-top_cb = df_cb[df_cb["year"] == YEAR].nlargest(15, "blocks_above_average")
-ax.barh(top_cb["player_name"], top_cb["blocks_above_average"],
-        color=sns.color_palette("mako", 15))
-ax.set_xlabel("Blocks Above Average", fontsize=14)
-ax.set_title(f"Top 15 Catchers — Blocking — {YEAR}", fontsize=16)
-ax.invert_yaxis()
+df_cs = fetch_years(sx.catcher_stance)
+fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+barh(axes[0], df_cb[df_cb.year == YEAR], "player_name", "blocks_above_average",
+     f"Blocks above average, {YEAR}", "Blocks above average", "mako")
+d = df_cs[df_cs.year == YEAR]
+axes[1].scatter(d.knee_down_pct, d.catching_rv, s=35, alpha=0.7, color="teal")
+axes[1].set_title(f"Knee-down rate vs catching run value, {YEAR}")
+axes[1].set_xlabel("Share of pitches with a knee down")
+axes[1].set_ylabel("Catching run value")
 plt.tight_layout()
 plt.show()
 
 # %% [markdown]
 # ---
-# ## 11. Catcher Throwing
-# Pop time, exchange time, CS rate, arm strength.
+# ## 13. Baserunning and 14. Basestealing Run Value
 
 # %%
-from savant_extras import catcher_throwing
-
-df_ct = fetch_years(catcher_throwing)
-print(f"Catcher Throwing: {len(df_ct)} catcher-seasons")
-df_ct.head()
-
-# %%
-fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-
-ct25 = df_ct[df_ct["year"] == YEAR]
-top_pop = ct25.nsmallest(15, "pop_time")
-axes[0].barh(top_pop["player_name"], top_pop["pop_time"],
-             color=sns.color_palette("YlOrRd_r", 15))
-axes[0].set_xlabel("Pop Time (sec)", fontsize=14)
-axes[0].set_title(f"Best Pop Time — {YEAR}", fontsize=16)
-axes[0].invert_yaxis()
-
-top_cs = ct25.nlargest(15, "caught_stealing_above_average")
-axes[1].barh(top_cs["player_name"], top_cs["caught_stealing_above_average"],
-             color=sns.color_palette("crest", 15))
-axes[1].set_xlabel("CS Above Average", fontsize=14)
-axes[1].set_title(f"Top 15 CS Above Average — {YEAR}", fontsize=16)
-axes[1].invert_yaxis()
-
-plt.tight_layout()
-plt.show()
-
-# %% [markdown]
-# ---
-# ## 12. Catcher Stance
-# One-knee vs traditional stance: framing, blocking, throwing impact.
-
-# %%
-from savant_extras import catcher_stance
-
-df_cs = fetch_years(catcher_stance)
-print(f"Catcher Stance: {len(df_cs)} catcher-seasons")
-df_cs.head()
-
-# %%
-fig, ax = plt.subplots(figsize=(8, 6))
-cs25 = df_cs[df_cs["year"] == YEAR]
-ax.scatter(cs25["knee_down_pct"], cs25["catching_rv"], alpha=0.6, s=30, color="teal")
-ax.set_xlabel("Knee Down %", fontsize=14)
-ax.set_ylabel("Catching Run Value", fontsize=14)
-ax.set_title(f"Knee Down Rate vs Catching Value — {YEAR}", fontsize=16)
-plt.tight_layout()
-plt.show()
-
-# %% [markdown]
-# ---
-# ## 13. Baserunning Run Value
-# Total baserunning value (extra bases + stolen bases).
-
-# %%
-from savant_extras import baserunning
-
-df_br = fetch_years(baserunning)
-print(f"Baserunning: {len(df_br)} runner-seasons")
-df_br.head()
-
-# %%
-fig, ax = plt.subplots(figsize=(10, 6))
-top_br = df_br[df_br["year"] == YEAR].nlargest(TOP_N, "runner_runs_tot")
-ax.barh(top_br["entity_name"], top_br["runner_runs_tot"],
-        color=sns.color_palette("viridis", TOP_N))
-ax.set_xlabel("Total Baserunning Run Value", fontsize=14)
-ax.set_title(f"Top {TOP_N} Baserunners — {YEAR}", fontsize=16)
-ax.invert_yaxis()
-plt.tight_layout()
-plt.show()
-
-# %% [markdown]
-# ---
-# ## 14. Basestealing Run Value
-# Stolen base run value, success rate, lead distances.
-
-# %%
-from savant_extras import basestealing
-
-df_bs = fetch_years(basestealing)
-print(f"Basestealing: {len(df_bs)} runner-seasons")
-df_bs.head()
-
-# %%
-fig, ax = plt.subplots(figsize=(10, 6))
-top_bs = df_bs[df_bs["year"] == YEAR].nlargest(TOP_N, "runs_stolen_on_running_act")
-ax.barh(top_bs["player_name"], top_bs["runs_stolen_on_running_act"],
-        color=sns.color_palette("rocket", TOP_N))
-ax.set_xlabel("Basestealing Run Value", fontsize=14)
-ax.set_title(f"Top {TOP_N} Base Stealers — {YEAR}", fontsize=16)
-ax.invert_yaxis()
+df_br = fetch_years(sx.baserunning)
+df_bs = fetch_years(sx.basestealing)
+fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+barh(axes[0], df_br[df_br.year == YEAR], "entity_name", "runner_runs_tot",
+     f"Baserunning run value, {YEAR}", "Runs", "viridis")
+barh(axes[1], df_bs[df_bs.year == YEAR], "player_name", "runs_stolen_on_running_act",
+     f"Basestealing run value, {YEAR}", "Runs", "rocket")
 plt.tight_layout()
 plt.show()
 
 # %% [markdown]
 # ---
 # ## 15. Timer Infractions (2023+)
-# Pitch clock violations by type.
+# Pitch clock violations by team.
 
 # %%
-from savant_extras import timer_infractions
-
-df_ti = fetch_years(timer_infractions)
-print(f"Timer Infractions: {len(df_ti)} player-seasons")
-df_ti.head()
-
-# %%
-fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-
-ti25 = df_ti[df_ti["year"] == YEAR]
-top_ti = ti25.nlargest(TOP_N, "all_violations")
-axes[0].barh(top_ti["entity_name"], top_ti["all_violations"],
-             color=sns.color_palette("Reds", TOP_N))
-axes[0].set_xlabel("Total Violations", fontsize=14)
-axes[0].set_title(f"Most Pitch Timer Violations — {YEAR}", fontsize=16)
-axes[0].invert_yaxis()
-
-violation_types = ["pitcher_timer", "batter_timer", "batter_timeout", "catcher_timer", "defensive_shift"]
-violation_labels = ["Pitcher", "Batter", "Batter TO", "Catcher", "Def Shift"]
-totals = [ti25[v].sum() for v in violation_types]
-axes[1].bar(violation_labels, totals,
-            color=["#e74c3c", "#3498db", "#2ecc71", "#f39c12", "#9b59b6"],
-            edgecolor="white", width=0.6)
-axes[1].set_ylabel("Total Violations", fontsize=14)
-axes[1].set_title(f"Violations by Type — {YEAR}", fontsize=16)
-
+df_ti = fetch_years(sx.timer_infractions)
+types = ["pitcher_timer", "batter_timer", "batter_timeout", "catcher_timer", "defensive_shift"]
+tot = df_ti.groupby("year")[types].sum()
+tot.columns = ["Pitcher", "Batter", "Batter timeout", "Catcher", "Defensive shift"]
+ax = tot.plot(kind="bar", stacked=True, figsize=(9, 5.5), colormap="tab10", rot=0)
+ax.set_title("Pitch clock violations by type")
+ax.set_xlabel("")
+ax.set_ylabel("Violations")
 plt.tight_layout()
 plt.show()
 
 # %% [markdown]
 # ---
-# ## 16. Year-to-Year Changes
-# xwOBA changes across seasons.
+# ## 16. Year-to-Year xwOBA
+# `year` selects the qualified batters; every season from 2015 comes back as a column.
 
 # %%
-from savant_extras import year_to_year
-
-df_yty = fetch_years(year_to_year)
-print(f"Year to Year: {len(df_yty)} batter-seasons")
-df_yty.head()
-
-# %%
-delta_col = "delta_2024_2025" if "delta_2024_2025" in df_yty.columns else "delta_2023_2024"
-if delta_col in df_yty.columns:
-    fig, ax = plt.subplots(figsize=(8, 6))
-    delta = df_yty[delta_col].dropna()
-    ax.hist(delta, bins=30, color="steelblue", edgecolor="white")
-    ax.axvline(0, color="red", lw=1.5, ls="--")
-    ax.set_xlabel(f"xwOBA Change ({delta_col.replace('delta_', '').replace('_', ' → ')})", fontsize=14)
-    ax.set_ylabel("Count", fontsize=14)
-    ax.set_title(f"Year-to-Year xwOBA Change Distribution", fontsize=16)
-    plt.tight_layout()
-    plt.show()
-
-# %% [markdown]
-# ---
-# ## 17. Park Factors (FanGraphs)
-# Per-team park factors for runs, HR, 1B/2B/3B, SO, BB, FIP. 100 = neutral.
-
-# %%
-from savant_extras import park_factors_range
-
-try:
-    df_pf = park_factors_range(YEARS[0], YEARS[-1])
-    print(f"Park Factors: {len(df_pf)} team-seasons")
-    df_pf.head()
-except Exception as e:
-    print(f"park_factors: skipped ({e})")
-    df_pf = pd.DataFrame()
-
-# %%
-if not df_pf.empty:
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-    pf25 = df_pf[df_pf["season"] == YEAR].sort_values("pf_5yr", ascending=True)
-    colors = ["#e74c3c" if v > 100 else "#3498db" for v in pf25["pf_5yr"]]
-    axes[0].barh(pf25["team"], pf25["pf_5yr"], color=colors)
-    axes[0].axvline(100, color="gray", lw=1.5, ls="--")
-    axes[0].set_xlabel("5-Year Park Factor (runs)", fontsize=14)
-    axes[0].set_title(f"Park Factors — {YEAR}", fontsize=16)
-    axes[1].scatter(pf25["pf_5yr"], pf25["pf_hr"], alpha=0.7, s=50, color="steelblue")
-    for _, row in pf25.iterrows():
-        axes[1].annotate(row["team"], (row["pf_5yr"], row["pf_hr"]),
-                         fontsize=7, ha="center", va="bottom")
-    axes[1].axhline(100, color="gray", lw=0.8, ls="--")
-    axes[1].axvline(100, color="gray", lw=0.8, ls="--")
-    axes[1].set_xlabel("5-Year Park Factor (runs)", fontsize=14)
-    axes[1].set_ylabel("HR Park Factor", fontsize=14)
-    axes[1].set_title(f"Runs vs HR Park Factor — {YEAR}", fontsize=16)
-    plt.tight_layout()
-    plt.show()
-else:
-    print("Park Factors: skipped (FanGraphs may block cloud IPs)")
-
-# %% [markdown]
-# ---
-# ## 18. Outs Above Average (OAA)
-# Defensive runs saved vs expected, with directional breakdowns.
-
-# %%
-from pybaseball import statcast_outs_above_average
-
-def _oaa(year, **_):
-    return statcast_outs_above_average(year, 'all')
-
-df_oaa = fetch_years(_oaa, year_col="year")
-print(f"Outs Above Average: {len(df_oaa)} fielder-seasons")
-df_oaa.head()
-
-# %%
-fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-
-oaa25 = df_oaa[df_oaa["year"] == YEAR]
-top_oaa = oaa25.nlargest(TOP_N, "outs_above_average")
-axes[0].barh(top_oaa["last_name, first_name"], top_oaa["outs_above_average"],
-             color=sns.color_palette("crest", TOP_N))
-axes[0].set_xlabel("Outs Above Average", fontsize=14)
-axes[0].set_title(f"Top {TOP_N} Defenders by OAA — {YEAR}", fontsize=16)
-axes[0].invert_yaxis()
-
-if "fielding_runs_prevented" in oaa25.columns:
-    axes[1].scatter(oaa25["outs_above_average"], oaa25["fielding_runs_prevented"],
-                    alpha=0.5, s=25, color="teal")
-    axes[1].axhline(0, color="gray", lw=0.8, ls="--")
-    axes[1].axvline(0, color="gray", lw=0.8, ls="--")
-    axes[1].set_xlabel("Outs Above Average", fontsize=14)
-    axes[1].set_ylabel("Fielding Runs Prevented", fontsize=14)
-    axes[1].set_title(f"OAA vs Fielding Runs — {YEAR}", fontsize=16)
-
+df_yty = sx.year_to_year(2025)
+fig, ax = plt.subplots(figsize=(9, 5.5))
+ax.hist(df_yty["delta_2025_2026"].dropna(), bins=30, color="steelblue", edgecolor="white")
+ax.axvline(0, color="red", ls="--")
+ax.set_title("xwOBA change, 2025 to 2026 (2025 qualifiers)")
+ax.set_xlabel("Change in xwOBA")
+ax.set_ylabel("Batters")
 plt.tight_layout()
 plt.show()
 
 # %% [markdown]
 # ---
-# ## 19. Outfield Jump
-# First-step reaction and routing efficiency for outfielders (2-star plays only).
+# ## 17. Park Factors (Statcast, 2015+)
+# New in 0.6.0: Savant's own park factors, 1-year and 3-year windows (100 = neutral). The FanGraphs table is still available as `park_factors_fangraphs`.
+#
+# Parks without three years of history have no 3-year factors (the Athletics' Sutter Health Park from 2025, the Rays' George M. Steinbrenner Field in 2025); they are left out of the charts.
 
 # %%
-from pybaseball import statcast_outfielder_jump
-
-df_oj = fetch_years(statcast_outfielder_jump, year_col="year")
-print(f"Outfield Jump: {len(df_oj)} outfielder-seasons")
-df_oj.head()
-
-# %%
-fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-
-oj25 = df_oj[df_oj["year"] == YEAR]
-name_col = "player_name" if "player_name" in oj25.columns else oj25.columns[0]
-
-if "rel_league_bootup_distance" in oj25.columns:
-    top_oj = oj25.nlargest(TOP_N, "rel_league_bootup_distance")
-    axes[0].barh(top_oj[name_col], top_oj["rel_league_bootup_distance"],
-                 color=sns.color_palette("rocket", TOP_N))
-    axes[0].set_xlabel("Jump vs League Avg (ft)", fontsize=14)
-    axes[0].set_title(f"Top {TOP_N} Outfield Jump — {YEAR}", fontsize=16)
-    axes[0].invert_yaxis()
-
-if "rel_league_reaction_distance" in oj25.columns and "rel_league_routing_distance" in oj25.columns:
-    axes[1].scatter(oj25["rel_league_reaction_distance"], oj25["rel_league_routing_distance"],
-                    alpha=0.5, s=25, color="darkorange")
-    axes[1].axhline(0, color="gray", lw=0.8, ls="--")
-    axes[1].axvline(0, color="gray", lw=0.8, ls="--")
-    axes[1].set_xlabel("Reaction Distance vs Avg (ft)", fontsize=14)
-    axes[1].set_ylabel("Routing Distance vs Avg (ft)", fontsize=14)
-    axes[1].set_title(f"First Step vs Route Efficiency — {YEAR}", fontsize=16)
-
+df_pf = fetch_years(sx.park_factors)
+print(df_pf[df_pf.pf_3yr.isna()][["year", "team", "venue_name", "pf_1yr"]])
+d = df_pf[df_pf.year == YEAR].dropna(subset=["pf_3yr", "pf_hr"]).sort_values("pf_3yr")
+fig, axes = plt.subplots(1, 2, figsize=(15, 7))
+axes[0].barh(d.team, d.pf_3yr, color=["#C44E52" if v > 100 else "#4C72B0" for v in d.pf_3yr])
+axes[0].axvline(100, color="gray", ls="--")
+axes[0].set_title(f"3-year park factor, runs ({YEAR})")
+axes[0].set_xlabel("Park factor")
+axes[1].scatter(d.pf_3yr, d.pf_hr, s=40, color="steelblue")
+for _, r in d.iterrows():
+    axes[1].annotate(r.team, (r.pf_3yr, r.pf_hr), fontsize=9, ha="center", va="bottom")
+axes[1].axhline(100, color="gray", lw=0.8, ls="--")
+axes[1].axvline(100, color="gray", lw=0.8, ls="--")
+axes[1].set_title(f"Runs vs home runs ({YEAR})")
+axes[1].set_xlabel("Park factor, runs")
+axes[1].set_ylabel("Park factor, HR")
 plt.tight_layout()
 plt.show()
 
 # %% [markdown]
 # ---
-# ## 20. Pitcher Quality — Stuff+ / Location+ / Pitching+ (FanGraphs)
-# Model-based pitcher quality metrics. 100 = MLB average.
+# ## 18. Outs Above Average and 19. Outfield Jump
+# Not wrapped by savant-extras; Savant's CSV endpoints work directly. OAA's own `year` column is empty, so it is set from the request.
 
 # %%
-from pybaseball import fg_pitching_data
-
-_PQ_COLS = ["Name", "Team", "Age", "IP", "Stuff+", "Location+", "Pitching+"]
-_PQ_RENAME = {"Name": "name", "Team": "team", "Age": "age", "IP": "ip",
-              "Stuff+": "stuff_plus", "Location+": "location_plus", "Pitching+": "pitching_plus"}
-pq_frames = []
+frames = []
 for y in YEARS:
-    try:
-        df_tmp = fg_pitching_data(y, qual=0)
-        avail = [c for c in _PQ_COLS if c in df_tmp.columns]
-        df_tmp = df_tmp[avail].rename(columns=_PQ_RENAME).copy()
-        df_tmp = coerce_numeric(df_tmp)
-        df_tmp["season"] = y
-        pq_frames.append(df_tmp)
-        print(f"pitcher_quality {y}: {len(df_tmp)} pitchers")
-    except Exception as e:
-        print(f"pitcher_quality {y}: skipped ({e})")
-    time.sleep(1.5)
-df_pq = pd.concat(pq_frames, ignore_index=True) if pq_frames else pd.DataFrame()
-print(f"Pitcher Quality total: {len(df_pq)} pitcher-seasons")
-df_pq.head()
+    d = savant_csv("https://baseballsavant.mlb.com/leaderboard/outs_above_average"
+                   f"?type=Fielder&startYear={y}&endYear={y}&split=no&team=&range=year&min=q&pos=&roles=&viz=hide&csv=true")
+    d["year"] = y
+    frames.append(d)
+    time.sleep(1)
+df_oaa = pd.concat(frames, ignore_index=True)
+df_oj = savant_csv(f"https://baseballsavant.mlb.com/leaderboard/outfield_jump?year={YEAR}&min=q&csv=true")
 
-# %%
-if not df_pq.empty:
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-    pq25 = df_pq[df_pq["season"] == YEAR]
-    if "pitching_plus" in pq25.columns:
-        top_pq = pq25.nlargest(TOP_N, "pitching_plus")
-        axes[0].barh(top_pq["name"], top_pq["pitching_plus"],
-                     color=sns.color_palette("flare", TOP_N))
-        axes[0].axvline(100, color="gray", lw=1.5, ls="--")
-        axes[0].set_xlabel("Pitching+ (100 = MLB avg)", fontsize=14)
-        axes[0].set_title(f"Top {TOP_N} Pitching+ — {YEAR}", fontsize=16)
-        axes[0].invert_yaxis()
-    if "stuff_plus" in pq25.columns and "location_plus" in pq25.columns:
-        axes[1].scatter(pq25["stuff_plus"], pq25["location_plus"],
-                        alpha=0.5, s=20, color="purple")
-        axes[1].axhline(100, color="gray", lw=0.8, ls="--")
-        axes[1].axvline(100, color="gray", lw=0.8, ls="--")
-        axes[1].set_xlabel("Stuff+ (100 = avg)", fontsize=14)
-        axes[1].set_ylabel("Location+ (100 = avg)", fontsize=14)
-        axes[1].set_title(f"Stuff+ vs Location+ — {YEAR}", fontsize=16)
-    plt.tight_layout()
-    plt.show()
-else:
-    print("Pitcher Quality: skipped (FanGraphs may block cloud IPs)")
+fig, axes = plt.subplots(1, 2, figsize=(15, 6))
+barh(axes[0], df_oaa[df_oaa.year == YEAR], "last_name, first_name", "outs_above_average",
+     f"Outs above average, {YEAR}", "OAA")
+axes[1].scatter(df_oj.rel_league_reaction_distance, df_oj.rel_league_routing_distance, s=30, alpha=0.6, color="darkorange")
+axes[1].axhline(0, color="gray", lw=0.8, ls="--")
+axes[1].axvline(0, color="gray", lw=0.8, ls="--")
+axes[1].set_title(f"Outfielders: first step vs route, {YEAR}")
+axes[1].set_xlabel("Reaction vs league (ft)")
+axes[1].set_ylabel("Route vs league (ft)")
+plt.tight_layout()
+plt.show()
 
 # %% [markdown]
 # ---
-# ## Save All Data as CSV (2024–2025)
-# Export all leaderboards for the dataset. Files named `*_2024_2025.csv`.
+# ## 20. ABS Challenges (new in 0.6.0)
+# MLB adopted the Automated Ball-Strike challenge in 2026; Triple-A has used it since 2025. One row per challenger, keyed by the MLBAM `player_id`.
 
 # %%
-import os
-output_dir = "savant_extras_2024_2025"
-os.makedirs(output_dir, exist_ok=True)
+rows = []
+for level, year in [("aaa", 2025), ("aaa", 2026), ("mlb", 2026)]:
+    for who in ["batter", "catcher"]:
+        d = sx.abs_challenges(year, level=level, challenge_type=who)
+        rows.append({"board": f"{level.upper()} {year}", "who": who,
+                     "challenges": d.n_challenges.sum(), "won": d.n_overturns.sum()})
+        time.sleep(1)
+abs_tab = pd.DataFrame(rows)
+abs_tab["share_won"] = abs_tab.won / abs_tab.challenges
+print(abs_tab)
 
-# park_factors uses "season" column; pitcher_quality uses "season" column
-# all others have "year" column added by fetch_years()
-datasets = {
-    "bat_tracking":       df_bat,
-    "pitch_tempo":        df_tempo,
-    "arm_strength":       df_arm,
-    "batted_ball":        df_bb,
-    "home_runs":          df_hr,
-    "pitch_movement":     df_pm,
-    "swing_take":         df_st,
-    "pitcher_arm_angle":  df_angle,
-    "running_game":       df_rg,
-    "catcher_blocking":   df_cb,
-    "catcher_throwing":   df_ct,
-    "catcher_stance":     df_cs,
-    "baserunning":        df_br,
-    "basestealing":       df_bs,
-    "timer_infractions":  df_ti,
-    "year_to_year":       df_yty,
-    "park_factors":       df_pf,
-    "outs_above_average": df_oaa,
-    "outfield_jump":      df_oj,
-    "pitcher_quality":    df_pq,
-}
+ax = abs_tab.pivot(index="board", columns="who", values="share_won").plot(kind="bar", rot=0, figsize=(9, 5.5))
+ax.axhline(0.5, color="gray", ls="--")
+ax.set_ylim(0, 0.75)
+ax.legend(title="Challenger", loc="upper left", ncol=2)
+ax.set_title("Share of ABS challenges won")
+ax.set_xlabel("")
+ax.set_ylabel("Share won")
+plt.tight_layout()
+plt.show()
 
-for name, df in datasets.items():
-    path = f"{output_dir}/{name}_2024_2025.csv"
-    df.to_csv(path, index=False)
-    print(f"Saved {path}: {len(df)} rows x {len(df.columns)} cols")
+# %% [markdown]
+# ---
+# ## 21. Triple-A pitch-level Statcast (new in 0.6.0)
+# `statcast_minors` sends `minors=true`, which pybaseball's `statcast()` cannot, one request per day. Here one week of Triple-A.
 
-print(f"\nTotal: {len(datasets)} CSV files saved to {output_dir}/")
+# %%
+df_aaa = sx.statcast_minors("2026-06-01", "2026-06-07")
+print(f"{len(df_aaa):,} Triple-A pitches, {df_aaa.pitcher.nunique()} pitchers")
+velo = df_aaa.dropna(subset=["pitch_type", "release_speed"]).groupby("pitch_type").release_speed.agg(["count", "mean"])
+velo = velo[velo["count"] >= 200].sort_values("mean")
+fig, ax = plt.subplots(figsize=(9, 5.5))
+ax.barh(velo.index, velo["mean"], color="#4C72B0")
+ax.set_xlim(70, None)
+ax.set_title("Triple-A average velocity by pitch type (June 1-7, 2026)")
+ax.set_xlabel("Release speed (mph)")
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# ---
+# ## The published dataset
+# The attached dataset holds these leaderboards for 2024-2026 as CSVs, built with the same package and checked (seasons present, no two seasons the same table, all pitch types). For example, velocity by pitch type across three seasons:
+
+# %%
+import glob, os
+paths = glob.glob("/kaggle/input/**/pitch_movement.csv", recursive=True)
+if paths:
+    pm = pd.read_csv(paths[0])
+    core = ["FF", "SI", "FC", "SL", "ST", "CU", "CH", "FS"]
+    t = (pm[pm.pitch_type.isin(core)]
+         .groupby(["pitch_type", "year"])
+         .apply(lambda g: (g.avg_speed * g.pitches_thrown).sum() / g.pitches_thrown.sum())
+         .unstack())
+    print("Average speed (mph), weighted by pitches thrown")
+    display(t.round(1))
+    print("Files:", sorted(os.path.basename(p) for p in glob.glob(os.path.join(os.path.dirname(paths[0]), "*.csv"))))
+else:
+    print("Attach the dataset yasunorim/baseball-savant-leaderboards-2024 to run this cell.")
 
 # %% [markdown]
 # ---
 # ## Summary
 #
-# **savant-extras** provides 21+ leaderboards (pybaseball doesn't support any of them):
-#
-# | Category | Leaderboards |
+# | Category | Functions |
 # |---|---|
-# | Batting | Bat Tracking, Batted Ball, Home Runs, Swing & Take, Year-to-Year |
-# | Pitching | Pitch Tempo, Pitch Movement, Arm Angle, Running Game, Timer Infractions, Pitcher Quality (Stuff+) |
-# | Catching | Blocking, Throwing, Stance |
-# | Baserunning | Baserunning Run Value, Basestealing Run Value |
-# | Fielding | Arm Strength, Outs Above Average, Outfield Jump |
-# | Park | Park Factors (FanGraphs) |
+# | Batting | `bat_tracking`, `batted_ball`, `home_runs`, `swing_take`, `year_to_year` |
+# | Pitching | `pitch_tempo`, `pitch_movement`, `pitcher_arm_angle`, `running_game`, `timer_infractions` |
+# | Catching | `catcher_blocking`, `catcher_throwing`, `catcher_stance` |
+# | Baserunning | `baserunning`, `basestealing` |
+# | Fielding | `arm_strength` |
+# | Park | `park_factors` (Statcast), `park_factors_fangraphs` |
+# | ABS | `abs_challenges` (MLB 2026+, Triple-A 2025+) |
+# | Minor leagues | `statcast_minors` (Triple-A pitch by pitch) |
 #
-# Install: `pip install savant-extras`
+# Most functions also have a `_range` version for several seasons.
 #
 # - **PyPI**: [savant-extras](https://pypi.org/project/savant-extras/)
 # - **GitHub**: [yasumorishima/savant-extras](https://github.com/yasumorishima/savant-extras)
-# - **Dataset**: [Baseball Savant Leaderboards 2024-2025](https://www.kaggle.com/datasets/yasunorim/baseball-savant-leaderboards-2024)
+# - **Dataset**: [Baseball Savant Leaderboards (2024-2026)](https://www.kaggle.com/datasets/yasunorim/baseball-savant-leaderboards-2024)
+# - **ABS dataset**: [ABS Challenges: Triple-A 2025 to MLB 2026](https://www.kaggle.com/datasets/yasunorim/mlb-abs-challenges-aaa-2025-to-mlb-2026)
+#
+# Data: Baseball Savant (MLB Advanced Media).

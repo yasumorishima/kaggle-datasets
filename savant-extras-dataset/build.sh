@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Called by .github/workflows/update-dataset.yml before `kaggle datasets version`.
-# Builds the upload folder $DIR/_build (20 CSVs, the description files and dataset-metadata.json)
+# Builds the upload folder $DIR/_build (20 CSVs and dataset-metadata.json)
 # and fails without writing anything if build.py's gates fail.
 # KAGGLE_USERNAME / KAGGLE_KEY are needed only for the download of the current version, so they
 # are removed from the environment of everything else (pip and the build script).
@@ -10,8 +10,8 @@ NOCREDS=(env -u KAGGLE_USERNAME -u KAGGLE_KEY)
 
 "${NOCREDS[@]}" pip install -q "savant-extras==0.6.0" pandas requests
 
-# The current Kaggle version: source of the three FanGraphs-derived tables, and the list of
-# files the new version must not drop.
+# The current Kaggle version: source of the FanGraphs pitcher_quality table, and the list of
+# CSVs the new version must have a successor for.
 CARRY="$(mktemp -d)"
 kaggle datasets download -d yasunorim/baseball-savant-leaderboards-2024 -p "$CARRY" --unzip
 ls -l "$CARRY"
