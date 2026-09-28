@@ -1,5 +1,7 @@
 # MLB Pitcher Arsenal Evolution (2020-2025)
 
+> **Superseded:** the Kaggle dataset is now built by [`pitcher-arsenal-dataset/`](../pitcher-arsenal-dataset/) (2020-2026, Savant regular-season leaderboards, corrected whiff%); the files here describe the old version.
+
 Track how MLB pitchers' pitch mix and performance metrics evolve across six seasons (2020-2025).
 
 ## 📊 Overview
