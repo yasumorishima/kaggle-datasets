@@ -1,0 +1,50 @@
+================================================================
+Japanese MLB Players Statcast 2015-2026 - File Descriptions
+================================================================
+Use the text below for each file's "About this file" section on Kaggle.
+================================================================
+
+
+----------------------------------------------------------------
+japanese_mlb_pitching.csv
+----------------------------------------------------------------
+Every regular-season pitch thrown in MLB from 2015 to 2026 by the pitchers in players.csv
+(Japan-born players; Shohei Ohtani is in both pitch files). One row per pitch, exactly as
+Baseball Savant's Statcast search serves it (all of Savant's columns, values unchanged), plus
+player_name_eng (the full name from MLB StatsAPI). The pitcher column is always the Japanese
+player; join it to players.csv or season_summary.csv on mlbam_id. Regular season only
+(game_type R). Every player-season was checked against MLB StatsAPI: id, name, season, game type,
+and a pitch count equal to StatsAPI's (Savant's automatic_ball / automatic_strike rows,
+which are not pitches, excluded).
+
+
+----------------------------------------------------------------
+japanese_mlb_batting.csv
+----------------------------------------------------------------
+Every regular-season pitch seen in MLB from 2015 to 2026 by the batters in players.csv, including
+the pitchers' own plate appearances and the two US-born players of
+Japanese heritage (Lars Nootbaar, Gosuke Katoh). One row per pitch, exactly as Baseball Savant's
+Statcast search serves it, plus player_name_eng. The batter column is always the player of the row;
+join it to players.csv or season_summary.csv on mlbam_id. Regular season only (game_type R), checked
+against MLB StatsAPI like the pitching file.
+
+
+----------------------------------------------------------------
+players.csv
+----------------------------------------------------------------
+One row per player: every player born in Japan (MLB StatsAPI birthCountry) with an MLB
+regular-season game from 2015 to 2026, plus two US-born players of Japanese heritage kept from the
+earlier version. MLBAM id, name, birth country, city and date, position, bats/throws, debut date,
+MLB teams and the seasons with rows in each pitch file. in_previous_version and previous_wrong_id
+record what changed from the earlier (February 2026) version, which had wrong ids for Hisashi
+Iwakuma and Yuki Matsui. The earlier npb_team and note columns were hand-typed and are not included.
+
+
+----------------------------------------------------------------
+season_summary.csv
+----------------------------------------------------------------
+One row per player, season and role (pitcher or batter): MLB StatsAPI regular-season stats (games,
+pitches, plate appearances or innings, rate stats) and MLB StatsAPI sabermetrics (wOBA, wRC+, FIP,
+xFIP, WAR; MLB's own calculation, not FanGraphs'), next to statcast_rows, the number of rows of the
+same player-season-role in the pitch file. Useful to filter the pitch files by workload or to join
+season outcomes to pitch-level features.

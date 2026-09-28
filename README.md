@@ -13,6 +13,7 @@ Comprehensive Statcast data for 34 Japanese MLB players across 10+ seasons.
 - **Columns:** 238 metrics (pitch velocities, spin rates, exit velocities, launch angles, xwOBA, etc.)
 - **Size:** 75.5 MB
 - **DOI:** `10.34740/kaggle/dsv/10697439`
+- **Build:** [`japanese-mlb-players-statcast/build.py`](japanese-mlb-players-statcast/build.py) regenerates it in GitHub Actions (player list from MLB StatsAPI, regular season only, 2015-2026) and writes nothing unless every gate passes. The published version above is still the hand-built February 2026 one, which has two wrong player ids (Iwakuma, Matsui) and missing seasons, until the next upload.
 - **Article:** [Zenn](https://zenn.dev/yasumorishima/articles/kaggle-dataset-japanese-mlb-statcast)
 
 ### 2. [MLB Bat Tracking (2024-2025)](https://www.kaggle.com/datasets/yasunorim/mlb-bat-tracking-2024-2025) 🥈
