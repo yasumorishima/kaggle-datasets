@@ -26,7 +26,10 @@ Gates (the build fails and writes nothing if any is violated):
   last two), and in every game with at least GAME_CHECK_MIN_PITCHES pitches no kept column is empty
   (runners on base excepted) and the shares of bat_speed on swings, xwOBA on batted balls and
   delta_run_exp are above measured floors, which catches a day or game Savant has not finished
-  backfilling; the build also refuses to start within SETTLE_DAYS of a season's end;
+  backfilling. Neutral-site games (venue is not the home team's home venue per StatsAPI) may lack
+  NEUTRAL_OPTIONAL (bat tracking, alignment, arm angle, spin/extension) and skip the bat/xwOBA
+  floors, and the whole-day check looks only at home-venue games. A full build (or a sample with a
+  season's last days) refuses to start within SETTLE_DAYS of that season's end;
 - seasons are exactly YEARS; rows per season >= ROW_FLOOR, rows with a pitch_type equal to Savant's
   own season total (group_by=team, which leaves out pitch-clock automatic balls/strikes), and no kept column is empty for the whole season [full build only];
 - the season's first and last regular-season day have rows;
@@ -83,6 +86,15 @@ GAME_CHECK_MIN_PITCHES = 100
 GAME_FLOORS = {"bat_share": 0.50, "xwoba_share": 0.75, "dre_share": 0.90}
 # Columns that can be empty for a whole game by chance (on_3b was, in 3 of 128 games measured).
 GAME_OPTIONAL = {"on_1b", "on_2b", "on_3b"}
+BAT_TRACKING = ("bat_speed", "swing_length", "miss_distance", "attack_angle", "attack_direction",
+                "swing_path_tilt", "intercept_ball_minus_batter_pos_x_inches",
+                "intercept_ball_minus_batter_pos_y_inches")
+# Neutral-site games (no permanent Hawk-Eye install) may have these empty for the whole game:
+# measured on Seoul, Mexico City, London, Rickwood, Williamsport, Field of Dreams and Las Vegas
+# 2024-2026 (London 2024 also lacks the four spin/extension columns). Any other empty column fails.
+NEUTRAL_OPTIONAL = set(BAT_TRACKING) | {"if_fielding_alignment", "of_fielding_alignment", "arm_angle",
+                                        "effective_speed", "release_spin_rate", "release_extension",
+                                        "spin_axis"}
 # Savant finishes backfilling a day's derived columns within a day or two; a build for a season
 # that ended less than this many days ago is refused unless --allow-recent is given.
 SETTLE_DAYS = 3
@@ -202,12 +214,23 @@ def season_dates(year: int) -> tuple[date, date]:
     return date.fromisoformat(s["regularSeasonStartDate"]), date.fromisoformat(s["regularSeasonEndDate"])
 
 
-def schedule(start: date, end: date) -> pd.DataFrame:
+def schedule(year: int, start: date, end: date) -> pd.DataFrame:
+    """Regular-season games with a `neutral` flag: the game's venue is not the home team's home venue
+    for that season (StatsAPI /teams). Neutral sites (Seoul, Mexico City, London, Rickwood,
+    Williamsport, Field of Dreams, Las Vegas, ...) may lack Hawk-Eye bat tracking and other columns."""
+    teams = _get(f"{STATSAPI}/teams", {"season": year, "sportId": 1}, timeout=60).json()["teams"]
+    home_venue = {t["id"]: t["venue"]["id"] for t in teams}
     js = _get(f"{STATSAPI}/schedule", {"sportId": 1, "gameType": "R", "startDate": start.isoformat(),
-                                       "endDate": end.isoformat()}, timeout=120).json()
-    rows = [{"game_pk": g["gamePk"], "official_date": g.get("officialDate") or d["date"],
-             "state": g["status"].get("codedGameState")}
-            for d in js.get("dates", []) for g in d.get("games", [])]
+                                       "endDate": end.isoformat(), "hydrate": "venue"}, timeout=120).json()
+    rows = []
+    for d in js.get("dates", []):
+        for g in d.get("games", []):
+            home = g["teams"]["home"]["team"]["id"]
+            if home not in home_venue:
+                raise SystemExit(f"StatsAPI: home team {home} of game {g['gamePk']} not in /teams {year}")
+            rows.append({"game_pk": g["gamePk"], "official_date": g.get("officialDate") or d["date"],
+                         "state": g["status"].get("codedGameState"), "venue": g["venue"]["name"],
+                         "neutral": g["venue"]["id"] != home_venue[home]})
     if not rows:
         raise SystemExit(f"StatsAPI schedule {start}..{end}: no games")
     return pd.DataFrame(rows)
@@ -324,27 +347,38 @@ def game_shares(df: pd.DataFrame) -> pd.DataFrame:
     return g.reset_index()
 
 
-def incomplete_games(df: pd.DataFrame, allowed_empty: set[str]) -> pd.DataFrame:
+def _empty_by_game(df: pd.DataFrame, cols: list[str]) -> pd.Series:
+    filled = df[cols].notna().groupby(df["game_pk"].astype("int64")).any()
+    return filled.apply(lambda r: [c for c in cols if not r[c]], axis=1)
+
+
+def incomplete_games(df: pd.DataFrame, allowed_empty: set[str], neutral: set[int] = frozenset()) -> pd.DataFrame:
     """Games with >= GAME_CHECK_MIN_PITCHES pitches that are below a share floor or have a kept column
-    empty on every pitch of the game (a partly backfilled day passes the whole-day check)."""
+    empty on every pitch of the game (a partly backfilled day passes the whole-day check).
+    Neutral-site games may lack NEUTRAL_OPTIONAL entirely and skip the bat/xwOBA floors."""
     g = game_shares(df)
     # Days since/until are legitimately empty in each team's first/last game, whatever the date;
     # the whole-day check still covers them. Game-level optional columns never have to be filled.
     skip = set(allowed_empty) | SINCE_COLS | UNTIL_COLS | GAME_OPTIONAL
     cols = [c for c in SAVANT_COLUMNS if c not in skip]
-    empty = df[cols].notna().groupby(df["game_pk"].astype("int64")).any()
-    g["empty_columns"] = g["game_pk"].map(empty.apply(lambda r: [c for c in cols if not r[c]], axis=1))
+    empty = _empty_by_game(df, cols)
+    g["neutral"] = g["game_pk"].isin(neutral)
+    g["empty_columns"] = [
+        [c for c in empty[pk] if not (nt and c in NEUTRAL_OPTIONAL)] for pk, nt in zip(g["game_pk"], g["neutral"])]
     g = g[g["pitches"] >= GAME_CHECK_MIN_PITCHES]
-    bad = g[(g["bat_share"] < GAME_FLOORS["bat_share"]) | (g["xwoba_share"] < GAME_FLOORS["xwoba_share"])
-            | (g["dre_share"] < GAME_FLOORS["dre_share"]) | (g["empty_columns"].str.len() > 0)]
-    return bad[["game_pk", "pitches", "bat_share", "xwoba_share", "dre_share", "empty_columns"]].round(3)
+    low = ((g["bat_share"] < GAME_FLOORS["bat_share"]) | (g["xwoba_share"] < GAME_FLOORS["xwoba_share"])) & ~g["neutral"]
+    bad = g[low | (g["dre_share"] < GAME_FLOORS["dre_share"]) | (g["empty_columns"].str.len() > 0)]
+    return bad[["game_pk", "neutral", "pitches", "bat_share", "xwoba_share", "dre_share", "empty_columns"]].round(3)
 
 
 def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Path | None, full: bool):
     """Fetch, check and write one season. Returns (slim frame, summary dict, errors)."""
     errors: list[str] = []
     start, end = season_dates(year)
-    sched = schedule(start, end)
+    sched = schedule(year, start, end)
+    neutral = set(sched.loc[sched["neutral"], "game_pk"].astype(int))
+    for r in sched[sched["neutral"]].drop_duplicates("game_pk").itertuples():
+        print(f"  neutral site: {r.official_date} {r.game_pk} {r.venue} ({r.state})", flush=True)
     days = [start + timedelta(n) for n in range((end - start).days + 1)]
     game_days = sorted({date.fromisoformat(d) for d in sched["official_date"]})
     first_days, last_days = set(game_days[:2]), set(game_days[-2:])
@@ -371,11 +405,18 @@ def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Pat
             nonnull += df[SAVANT_COLUMNS].notna().sum()
             allowed = set(DROPPED_EMPTY) | (SINCE_COLS if d in first_days else set()) | (
                 UNTIL_COLS if d in last_days else set())
-            if len(df) >= NULL_CHECK_MIN_ROWS:
-                empty = [c for c in SAVANT_COLUMNS if c not in allowed and df[c].isna().all()]
+            home_rows = df[~df["game_pk"].astype(int).isin(neutral)]
+            if len(home_rows) >= NULL_CHECK_MIN_ROWS:
+                empty = [c for c in SAVANT_COLUMNS if c not in allowed and home_rows[c].isna().all()]
                 if empty:
-                    errors.append(f"{d}: {len(df)} pitches but empty {empty} (not backfilled yet?)")
-            low = incomplete_games(df, allowed)
+                    errors.append(f"{d}: {len(home_rows)} pitches at home venues but empty {empty} "
+                                  "(not backfilled yet?)")
+            nd = df[df["game_pk"].astype(int).isin(neutral)]
+            if len(nd):
+                gone = _empty_by_game(nd, sorted(NEUTRAL_OPTIONAL))
+                for pk, cs in gone.items():
+                    print(f"    neutral game {pk}: {len(cs)} allowed columns empty {cs}", flush=True)
+            low = incomplete_games(df, allowed, neutral)
             if len(low):
                 errors.append(f"{d}: {len(low)} games below the per-game completeness floors "
                               f"(not backfilled yet?): {low.head(3).to_dict('records')}")
@@ -551,13 +592,15 @@ def main() -> int:
                     help=f"build even if a season ended less than {SETTLE_DAYS} days ago (the gates still apply)")
     args = ap.parse_args()
 
+    only = {date.fromisoformat(x) for x in args.days.split(",")} if args.days else None
     for y in YEARS:
         end = season_dates(y)[1]
-        if date.today() < end + timedelta(SETTLE_DAYS) and not args.allow_recent:
+        # Applies to a full build, or to a sample that includes one of the season's last days.
+        near_end = only is None or any(end - timedelta(SETTLE_DAYS) < d <= end for d in only)
+        if near_end and date.today() < end + timedelta(SETTLE_DAYS) and not args.allow_recent:
             print(f"{y} regular season ended {end}; Savant may still be backfilling its last days. "
                   f"Refusing to build before {end + timedelta(SETTLE_DAYS)} (override: --allow-recent).")
             return 1
-    only = {date.fromisoformat(x) for x in args.days.split(",")} if args.days else None
     full = only is None
     if args.cache:
         args.cache.mkdir(parents=True, exist_ok=True)
