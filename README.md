@@ -4,16 +4,14 @@ Baseball-themed datasets published on Kaggle, generated with [pybaseball](https:
 
 ## Published Datasets (7)
 
-### 1. [Japanese MLB Players Statcast (2015-2025)](https://www.kaggle.com/datasets/yasunorim/japan-mlb-pitchers-batters-statcast)
+### 1. [Japanese MLB Players Statcast (2015-2026)](https://www.kaggle.com/datasets/yasunorim/japan-mlb-pitchers-batters-statcast)
 
-Comprehensive Statcast data for 34 Japanese MLB players across 10+ seasons.
+Every regular-season Statcast pitch thrown or seen by Japanese MLB players, 2015-2026.
 
-- **Pitchers:** 25 players, 118,226 pitches (2015-2025)
-- **Batters:** 10 players, 56,362 batted balls (2015-2025)
-- **Columns:** 238 metrics (pitch velocities, spin rates, exit velocities, launch angles, xwOBA, etc.)
-- **Size:** 75.5 MB
+- **Players:** 38: 28 with pitching seasons, 24 with batting seasons (14 have both: mostly pitchers who batted before the 2022 universal DH, plus Ichiro and Aoki, who pitched, and Ohtani); 153 player-season-roles
+- **Files:** `japanese_mlb_pitching.csv` (130,546 rows), `japanese_mlb_batting.csv` (67,187 rows), `players.csv`, `season_summary.csv` (StatsAPI season and sabermetrics stats per player-season-role)
 - **DOI:** `10.34740/kaggle/dsv/10697439`
-- **Build:** [`japanese-mlb-players-statcast/build.py`](japanese-mlb-players-statcast/build.py) regenerates it in GitHub Actions (player list from MLB StatsAPI, regular season only, 2015-2026) and writes nothing unless every gate passes. The published version above is still the hand-built February 2026 one, which has two wrong player ids (Iwakuma, Matsui) and missing seasons, until the next upload.
+- **Build:** generated in GitHub Actions by [`japanese-mlb-players-statcast/build.py`](japanese-mlb-players-statcast/build.py) (rebuilt September 2026: player list from MLB StatsAPI, regular season only, pitch counts equal StatsAPI's; the previous version had two wrong player ids and missing seasons)
 - **Article:** [Zenn](https://zenn.dev/yasumorishima/articles/kaggle-dataset-japanese-mlb-statcast)
 
 ### 2. [MLB Bat Tracking (2024-2025)](https://www.kaggle.com/datasets/yasunorim/mlb-bat-tracking-2024-2025) 🥈
@@ -26,14 +24,13 @@ MLB bat tracking leaderboard data from Baseball Savant (2024-2025).
 - **DOI:** `10.34740/kaggle/dsv/10699103`
 - **Article:** [Zenn](https://zenn.dev/yasumorishima/articles/mlb-bat-tracking-dataset)
 
-### 3. [MLB Pitcher Arsenal Evolution (2020-2025)](https://www.kaggle.com/datasets/yasunorim/mlb-pitcher-arsenal-2020-2025)
+### 3. [MLB Pitcher Arsenal (2020-2026)](https://www.kaggle.com/datasets/yasunorim/mlb-pitcher-arsenal-2020-2025)
 
-Seasonal arsenal composition and performance metrics for MLB pitchers (2020-2025).
+Every pitcher's pitch mix, velocity, spin, break, whiff rate and run value by season (Baseball Savant, regular season).
 
-- **Data:** 4,253 pitcher-seasons (2020-2025)
-- **Columns:** 111 metrics (pitch type usage %, velocity, movement, whiff rate, xwOBA, etc.)
-- **Size:** 1.14 MB
+- **Files:** `pitcher_arsenal.csv` (one row per pitcher, season and pitch type), `pitcher_arsenal_wide.csv` (5,716 pitcher-seasons x 129 columns), `arsenal_changes.csv` (year over year)
 - **DOI:** `10.34740/kaggle/dsv/10704532`
+- **Build:** generated in GitHub Actions by [`pitcher-arsenal-dataset/build.py`](pitcher-arsenal-dataset/build.py) (rebuilt September 2026: whiff rate now equals Savant's; the previous version counted called strikes in its denominator)
 - **Article:** [Zenn](https://zenn.dev/yasumorishima/articles/mlb-pitcher-arsenal-dataset-2020-2025)
 
 ### 4. [MLB Statcast + Bat Tracking (2024-2025)](https://www.kaggle.com/datasets/yasunorim/mlb-statcast-bat-tracking-2024-2025)
@@ -44,13 +41,13 @@ Pitch-by-pitch Statcast data merged with Bat Tracking metrics.
 - **Metrics:** bat speed, swing length, swing path tilt, Statcast pitch-by-pitch data
 - **Notebook:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/yasumorishima/kaggle-datasets/blob/main/dataset4_statcast_bat_tracking/generate.ipynb)
 
-### 5. [Baseball Savant Leaderboards (2024-2025)](https://www.kaggle.com/datasets/yasunorim/baseball-savant-leaderboards-2024)
+### 5. [Baseball Savant Leaderboards (2024-2026)](https://www.kaggle.com/datasets/yasunorim/baseball-savant-leaderboards-2024)
 
-20 Baseball Savant & FanGraphs leaderboards as clean CSV files.
+20 Baseball Savant leaderboards, 2024-2026, as clean CSVs joinable by player id.
 
-- **Files:** 20 CSVs — batting, pitching, fielding, catching, baserunning, park factors
-- **Sources:** savant-extras 0.6.0 (16 leaderboards) + Savant's OAA CSV endpoint; Outfield Jump, Pitcher Quality and Park Factors (FanGraphs) carried over from the previous version
-- **Build:** generated in GitHub Actions by [`savant-extras-dataset/build.py`](savant-extras-dataset/build.py) (rebuilt September 2026: the previous version had 7 tables where 2024 and 2025 were the same table)
+- **Files:** 20 CSVs: batting, pitching, fielding, catching, baserunning, park factors
+- **Sources:** savant-extras 0.6.0 plus Savant's own CSV endpoints (Outs Above Average, Outfield Jump)
+- **Build:** generated in GitHub Actions by [`savant-extras-dataset/build.py`](savant-extras-dataset/build.py) (rebuilt September 2026 for 2024-2026: the previous version had 7 tables where 2024 and 2025 were the same table)
 - **Notebooks:** [Showcase](https://www.kaggle.com/code/yasunorim/savant-extras-showcase) · [Defense & Pitching Quality](https://www.kaggle.com/code/yasunorim/savant-extras-defense-pitching-quality)
 
 ### 6. [WBC 2026 Scouting - Statcast Data](https://www.kaggle.com/datasets/yasunorim/wbc-2026-scouting) 🥈

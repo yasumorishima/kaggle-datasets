@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Called by .github/workflows/update-dataset.yml before the new version is uploaded.
-# Builds the upload folder $DIR/_build (the four CSVs, file_descriptions.txt and
+# Builds the upload folder $DIR/_build (the four CSVs and
 # dataset-metadata.json) and fails without writing anything if build.py's gates fail.
 # KAGGLE_USERNAME / KAGGLE_KEY are needed only to download the current version's players.csv
 # (to check that no earlier player is dropped), so they are removed from everything else.

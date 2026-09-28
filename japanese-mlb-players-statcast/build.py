@@ -512,8 +512,6 @@ def build(args, only, settings, old, bio, eligible, failures, stage) -> int:
         print(f"title ({len(meta['title'])}) or subtitle ({len(meta['subtitle'])}) outside Kaggle's limits")
         return 1
     (stage / "dataset-metadata.json").write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
-    for p in sorted(args.meta.parent.glob("*.txt")):
-        shutil.copy2(p, stage / p.name)
     shutil.rmtree(args.out, ignore_errors=True)
     stage.rename(args.out)
     for p in sorted(args.out.iterdir()):
