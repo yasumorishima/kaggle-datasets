@@ -27,7 +27,7 @@ Gates (the build fails and writes nothing if any is violated):
   (runners on base excepted), the shares of xwOBA on batted balls and delta_run_exp are above
   measured floors, and each column in COLUMN_FLOORS (bat tracking, arm angle, spin/extension,
   fielding alignment) is either empty on every applicable pitch of the game or filled at or above
-  its measured floor, which catches a day or game Savant has not finished backfilling.
+  its measured floor (GAME_FLOOR_EXCEPTIONS: measured games with a lower one), which catches a day or game Savant has not finished backfilling.
   Neutral-site games (venue is not the home team's home venue per StatsAPI) listed in NEUTRAL_GAPS
   may have their measured columns empty for the whole game; a partly filled column below its
   floor fails there too. Unlisted neutral games get the normal rules. The whole-day check looks only at home-venue games,
@@ -98,23 +98,40 @@ BAT_TRACKING = ("bat_speed", "swing_length", "miss_distance", "attack_angle", "a
 # this share of them (applicable: swings, swinging strikes, thrown pitches with a pitch_type, or all
 # pitches). Floors sit below the minimum over 451 games of 100+ pitches on 38 processed days
 # (2024-2026; for NEUTRAL_GAPS games only the columns not in their set), measured 2026-09-28;
-# minimum in brackets: swing columns 0.624 (2025-09-28 game 776141), miss_distance 0.0196 (same
-# game), arm_angle 0.693 (Tokyo 2025-03-19), effective_speed 0.894 (Mexico City 2026-04-26),
-# release_extension 0.944 (2026-03-26 game 824865), release_spin_rate / spin_axis 0.0595
-# (2024-06-20 game 745734, a home game), fielding alignment 0.682 (Tokyo 2025-03-19).
+# minimum in brackets: swing columns 0.624 (2025-09-28 game 776141), arm_angle 0.693 (Tokyo
+# 2025-03-19), effective_speed 0.894 (Mexico City 2026-04-26), release_extension 0.944 (2026-03-26
+# game 824865), fielding alignment 0.682 (Tokyo 2025-03-19). miss_distance and the spin columns
+# have a few games far below the rest; those are in GAME_FLOOR_EXCEPTIONS and the floors sit below
+# the minimum of the others: miss_distance 0.79 (1st percentile 0.84; the two exceptions 0.0196
+# and 0.023), release_spin_rate / spin_axis 0.790 (2026-06-10 game 824590; next 0.949; the
+# exception 0.0595).
 _SWING = ("bat_speed", "swing_length", "attack_angle", "attack_direction", "swing_path_tilt",
           "intercept_ball_minus_batter_pos_x_inches", "intercept_ball_minus_batter_pos_y_inches")
 COLUMN_FLOORS: dict[str, tuple[str, float]] = {
     **{c: ("swing", 0.50) for c in _SWING},
-    "miss_distance": ("miss", 0.01),
+    "miss_distance": ("miss", 0.60),
     "arm_angle": ("thrown", 0.60),
     "effective_speed": ("thrown", 0.85),
     "release_extension": ("thrown", 0.90),
-    "release_spin_rate": ("thrown", 0.04),
-    "spin_axis": ("thrown", 0.04),
+    "release_spin_rate": ("thrown", 0.70),
+    "spin_axis": ("thrown", 0.70),
     "if_fielding_alignment": ("all", 0.60),
     "of_fielding_alignment": ("all", 0.60),
 }
+# Measured games whose share is below the normal floor for a known reason: game_pk -> {column: floor
+# just below the measured share}. Same rules as NEUTRAL_GAPS: a game_pk in no schedule is an error,
+# and an entry whose column meets the normal floor in that game is an error (stale exception).
+GAME_FLOOR_EXCEPTIONS: dict[int, dict[str, float]] = {
+    # 2024-06-20 BAL at NYY: spin tracking failed for both teams, share 0.42 in the 1st inning,
+    # 0.15 in the 2nd and 0.00 from the 3rd on; speed and extension complete. Game share 0.0595.
+    745734: {"release_spin_rate": 0.05, "spin_axis": 0.05},
+    # 2025-09-28 game 776141: bat tracking thin (swing columns 0.624), miss_distance on 0.0196 of
+    # swinging strikes.
+    776141: {"miss_distance": 0.015},
+    # 2025-03-19 Tokyo Dome (neutral, full columns otherwise): miss_distance on 0.023.
+    778564: {"miss_distance": 0.02},
+}
+assert all(c in COLUMN_FLOORS for e in GAME_FLOOR_EXCEPTIONS.values() for c in e)
 # Neutral-site games without full Hawk-Eye coverage, measured 2026-09-28 game by game:
 # game_pk -> (columns empty on every pitch of that game, xwOBA floor override or None).
 # A listed column must be either empty for the whole game or pass the normal rules (COLUMN_FLOORS):
@@ -417,7 +434,7 @@ def incomplete_games(df: pd.DataFrame, allowed_empty: set[str]) -> pd.DataFrame:
     gaps = [NEUTRAL_GAPS.get(int(pk), (frozenset(), None)) for pk in g["game_pk"]]
     g["listed"] = [int(pk) in NEUTRAL_GAPS for pk in g["game_pk"]]
     g["empty_columns"] = [[c for c in empty[pk] if c not in gap[0]] for pk, gap in zip(g["game_pk"], gaps)]
-    g["partial_columns"] = [partial_columns(df[df["game_pk"].astype("int64") == pk]) for pk in g["game_pk"]]
+    g["partial_columns"] = [partial_columns(df[df["game_pk"].astype("int64") == pk], int(pk)) for pk in g["game_pk"]]
     xw_floor = [GAME_FLOORS["xwoba_share"] if gap[1] is None else gap[1] for gap in gaps]
     g = g.assign(xw_floor=xw_floor)
     g = g[g["pitches"] >= GAME_CHECK_MIN_PITCHES]
@@ -427,9 +444,12 @@ def incomplete_games(df: pd.DataFrame, allowed_empty: set[str]) -> pd.DataFrame:
                 "partial_columns"]].round(3)
 
 
-def partial_columns(game: pd.DataFrame) -> list[str]:
+def partial_columns(game: pd.DataFrame, pk: int = 0) -> list[str]:
     """COLUMN_FLOORS columns filled on some but fewer than their floor share of applicable pitches
-    (a column empty on every pitch of the game is judged by the empty-column rule instead)."""
+    (a column empty on every pitch of the game is judged by the empty-column rule instead), using
+    GAME_FLOOR_EXCEPTIONS for the game where listed; a listed exception the game no longer needs
+    (share at or above the normal floor) is reported as stale."""
+    exc = GAME_FLOOR_EXCEPTIONS.get(pk, {})
     scope = {"swing": game["is_swing"].to_numpy(dtype=bool),
              "miss": game["description"].isin(["swinging_strike", "swinging_strike_blocked"]).to_numpy(),
              "thrown": game["pitch_type"].notna().to_numpy(), "all": np.ones(len(game), dtype=bool)}
@@ -440,8 +460,12 @@ def partial_columns(game: pd.DataFrame) -> list[str]:
         if not filled.any() or not m.any():
             continue
         share = filled[m].mean()
-        if share < floor:
-            out.append(f"{c} {share:.3f}<{floor}")
+        if c in exc and share >= floor:
+            out.append(f"stale GAME_FLOOR_EXCEPTIONS entry: {c} {share:.3f}>={floor}")
+            continue
+        use = exc.get(c, floor)
+        if share < use:
+            out.append(f"{c} {share:.3f}<{use}")
     return out
 
 
@@ -474,7 +498,14 @@ def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Pat
     try:
         for d in days:
             t = time.time()
-            df = parse_day(fetch_day(d, cache), d, year)
+            try:
+                df = parse_day(fetch_day(d, cache), d, year)
+                day_key = _key(df)
+            except GateError as e:  # recorded, and the run goes on so one run lists every problem
+                errors.append(str(e))
+                per_day[d] = -1
+                print(f"  {d} FAILED: {e}", flush=True)
+                continue
             per_day[d] = len(df)
             print(f"  {d} {len(df):>5} rows {time.time() - t:5.1f}s", flush=True)
             if not len(df):
@@ -497,9 +528,12 @@ def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Pat
             low = incomplete_games(df, allowed)
             if len(low):
                 errors.append(f"{d}: {len(low)} games below the per-game completeness floors "
-                              f"(not backfilled yet?) {low['game_pk'].tolist()}, e.g. "
-                              f"{low.head(3).to_dict('records')}")
-            keys.append(_key(df))
+                              "(not backfilled yet?)")
+                for r in low.to_dict("records"):
+                    errors.append(f"{d}:   game {r['game_pk']} ({r['pitches']} pitches): "
+                                  f"empty {r['empty_columns']}, partial {r['partial_columns']}, xwoba_share "
+                                  f"{r['xwoba_share']}, dre_share {r['dre_share']}")
+            keys.append(day_key)
             pks.update(df["game_pk"].astype(int).unique().tolist())
             slims.append(df[SLIM].copy())
             rows += len(df)
@@ -697,9 +731,11 @@ def main() -> int:
         got = {y for y in YEARS if summaries[y]["rows"]}
         if got != set(YEARS):
             failures.append(f"seasons with rows {sorted(got)} != {list(YEARS)}")
-        unscheduled = sorted(set(NEUTRAL_GAPS) - set().union(*(summaries[y]["scheduled"] for y in YEARS)))
-        if unscheduled:
-            failures.append(f"NEUTRAL_GAPS games in no {list(YEARS)} regular-season schedule: {unscheduled}")
+        scheduled = set().union(*(summaries[y]["scheduled"] for y in YEARS))
+        for name, table in (("NEUTRAL_GAPS", NEUTRAL_GAPS), ("GAME_FLOOR_EXCEPTIONS", GAME_FLOOR_EXCEPTIONS)):
+            unscheduled = sorted(set(table) - scheduled)
+            if unscheduled:
+                failures.append(f"{name} games in no {list(YEARS)} regular-season schedule: {unscheduled}")
         keys = np.concatenate([summaries[y]["key"] for y in YEARS])
         if len(np.unique(keys)) != len(keys):
             failures.append("duplicate pitch_uid across seasons")
