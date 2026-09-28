@@ -1,0 +1,13 @@
+{
+  "id": "yasunorim/abs-challenges-who-wins-them-aaa-to-mlb",
+  "title": "ABS Challenges: Who Wins Them, AAA to MLB",
+  "code_file": "abs-challenges-starter.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "false",
+  "enable_gpu": "false",
+  "enable_internet": "false",
+  "dataset_sources": ["yasunorim/mlb-abs-challenges-aaa-2025-to-mlb-2026"],
+  "competition_sources": [],
+  "kernel_sources": []
+}
