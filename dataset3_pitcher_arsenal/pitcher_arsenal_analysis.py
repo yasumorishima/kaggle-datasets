@@ -169,7 +169,7 @@ plt.show()
 # %% [markdown]
 # ## 6. Whiff rate by pitch type
 #
-# `whiff_pct` is Savant's whiff%: swinging strikes divided by swings.
+# `whiff_pct` is Savant's whiff%: whiffs divided by swings, where Savant counts foul tips as whiffs.
 #
 # **Note on the old file.** The previous `whiff_rate` column divided swinging strikes by swings *plus called strikes*, so it was far too low (2025 four-seam median 0.132, against Savant's 21.6%). This notebook did not use that column before; any analysis that did should be redone with `whiff_pct`.
 #
@@ -186,7 +186,7 @@ fig, ax = plt.subplots(figsize=(13, 7))
 for p in MAIN:
     ax.plot(wh.index, wh[p], marker="o", lw=2.5, color=COLORS[p], label=PITCH_NAMES[p])
 ax.set_xlabel("Season")
-ax.set_ylabel("Median whiff % (swinging strikes / swings)")
+ax.set_ylabel("Median whiff % (whiffs / swings)")
 ax.set_title(f"Whiff % by pitch type (pitch types thrown {MIN_PITCHES}+ times)")
 ax.set_xticks(wh.index)
 ax.set_ylim(0, None)
@@ -206,7 +206,8 @@ heat = top20.set_index("player_name")[[f"{p.lower()}_usage_pct" for p in MAIN]]
 heat.columns = MAIN
 
 fig, ax = plt.subplots(figsize=(11, 12))
-sns.heatmap(heat, annot=True, fmt=".0f", cmap="YlOrRd", vmin=0, vmax=60,
+labels = heat.map(lambda v: "" if pd.isna(v) else ("<1" if v < 0.5 else f"{v:.0f}"))
+sns.heatmap(heat, annot=labels, fmt="", cmap="YlOrRd", vmin=0, vmax=60,
             annot_kws={"fontsize": 11}, cbar_kws={"label": "Usage (%)"}, ax=ax)
 ax.set_title(f"Pitch usage of the 20 pitchers with the most pitches, {YEAR}")
 ax.set_xlabel("Pitch type")
