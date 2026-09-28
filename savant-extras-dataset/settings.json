@@ -4,7 +4,7 @@
   "userSpecifiedSources": "Baseball Savant leaderboards (MLB Advanced Media), https://baseballsavant.mlb.com/leaderboard/ : 18 tables for the 2024-2026 regular seasons, 16 through savant-extras 0.6.0 (https://pypi.org/project/savant-extras/) and outs_above_average / outfield_jump from Savant's CSV endpoints; regular-season dates from MLB StatsAPI. pitcher_quality: FanGraphs (https://www.fangraphs.com/), 2024-2025. Built by build.py in https://github.com/yasumorishima/kaggle-datasets (savant-extras-dataset), which publishes nothing unless every gate in the description passes.",
   "files": {
     "arm_strength.csv": {
-      "description": "Fielder throw speed by position (Baseball Savant arm strength leaderboard), one row per fielder and season. primary_position is the scorer's position number (3 = 1B ... 9 = RF, 10 = DH); primary_position_name spells it out.",
+      "description": "Fielder throw speed by position (Baseball Savant arm strength leaderboard), one row per fielder and season. primary_position is the scorer's position number (3 = 1B ... 9 = RF, 10 = DH; 2 and 11 also occur, with primary_position_name empty); primary_position_name spells it out.",
       "columns": {
         "fielder_name": "Player full name (Last, First).",
         "player_id": "MLB Advanced Media player ID.",
@@ -216,7 +216,7 @@
       }
     },
     "home_runs.csv": {
-      "description": "Home runs per batter and season with park-adjusted expected HR, no-doubters, mostly-gone and doubters, and trot time. Baseball Savant's home run leaderboard has no season-type filter and counts postseason home runs: 2024 and 2025 include the postseason, 2026 was built as the 2026 postseason began and is regular season only.",
+      "description": "Home runs per batter and season with park-adjusted expected HR, no-doubters, mostly-gone and doubters, and trot time. Baseball Savant's home run leaderboard has no season-type filter and counts postseason home runs: 2024 and 2025 include their postseason, 2026 includes postseason games played up to the build date (the 2026 postseason began 2026-09-28).",
       "columns": {
         "player": "Player full name (Last, First).",
         "player_id": "MLB Advanced Media player ID.",
@@ -241,9 +241,9 @@
         "year": "MLB regular season (2024, 2025 or 2026). Set from the request.",
         "outs_above_average": "Outs above average on the 2-star-and-harder plays this leaderboard covers.",
         "outs_per_play": "Outs made per 100 opportunities (percent) on those plays.",
-        "rel_league_burst_distance": "Feet covered vs league average in the burst phase (seconds 1.5 to 3.0 after release).",
-        "rel_league_reaction_distance": "Feet covered vs league average in the reaction phase (first 1.5 seconds), in any direction.",
-        "rel_league_routing_distance": "Feet vs league average gained or lost by the route (direction) in the first 1.5 seconds.",
+        "rel_league_burst_distance": "Feet covered vs league average in any direction from 1.5 to 3.0 seconds (burst).",
+        "rel_league_reaction_distance": "Feet covered vs league average in any direction in the first 1.5 seconds (reaction).",
+        "rel_league_routing_distance": "Feet vs league average gained or lost by direction: feet covered in the right direction relative to feet covered in any direction over the first 3 seconds (route). Reaction + burst + route = rel_league_bootup_distance.",
         "rel_league_bootup_distance": "Total jump vs league average: feet covered in the right direction in the first 3 seconds (reaction + burst + route).",
         "f_bootup_distance": "Feet covered in the right direction in the first 3 seconds (the jump).",
         "n": "Opportunities (2-star and harder plays).",
@@ -280,7 +280,7 @@
         "n_pa_1yr": "Plate appearances in the 1-year window.",
         "n_pa_3yr": "Plate appearances in the 3-year window.",
         "pf_1yr": "Runs park factor, 1-year window (100 = neutral).",
-        "pf_3yr": "Runs park factor, 3-year rolling window (100 = neutral). Empty when the park has no 3-year history (the Athletics' Sutter Health Park in 2025 and 2026).",
+        "pf_3yr": "Runs park factor, 3-year rolling window (100 = neutral). Empty when the park has no 3-year history (the Athletics' Sutter Health Park in 2025 and 2026, the Rays' George M. Steinbrenner Field in 2025); so are the other 3-year columns.",
         "pf_3yr_years": "Seasons covered by the 3-year window.",
         "pf_hr": "Home run park factor, 3-year window (100 = neutral).",
         "pf_1b": "Single park factor, 3-year window.",
@@ -330,18 +330,16 @@
       }
     },
     "pitch_tempo.csv": {
-      "description": "Pitch tempo per pitcher and season: median seconds between pitches with bases empty and with runners on.",
+      "description": "Pitch tempo per pitcher and season: median seconds between pitches with the bases empty, pitch counts with bases empty and with runners on, and the share of hot/warm/cold tempo pitches. Savant's CSV export repeats the bases-empty median (and total_pitches) where the runners-on median should be; the copies are dropped.",
       "columns": {
         "entity_id": "MLB Advanced Media pitcher ID.",
         "entity_name": "Pitcher full name (Last, First).",
         "entity_code": "Team abbreviation for the pitcher.",
         "team_id": "MLB Advanced Media team ID.",
         "total_pitches": "Total pitches thrown.",
-        "total_pitches.1": "Total pitches thrown (duplicate column from source data).",
         "total_pitches_empty": "Total pitches thrown with bases empty.",
         "median_seconds_empty": "Median seconds between pitches with bases empty.",
         "total_pitches_onbase": "Total pitches thrown with runners on base.",
-        "median_seconds_empty.1": "Median seconds between pitches with runners on base.",
         "freq_hot": "Proportion of pitches thrown at a fast pace (hot tempo).",
         "freq_warm": "Proportion of pitches thrown at a moderate pace (warm tempo).",
         "freq_cold": "Proportion of pitches thrown at a slow pace (cold tempo).",
@@ -465,7 +463,7 @@
         "delta_2023_2024": "Change in xwOBA from 2023 to 2024.",
         "2025": "xwOBA for the 2025 season.",
         "delta_2024_2025": "Change in xwOBA from 2024 to 2025.",
-        "2026": "xwOBA for the 2026 season (in progress when the dataset was built).",
+        "2026": "xwOBA for the 2026 season.",
         "delta_2025_2026": "Change in xwOBA from 2025 to 2026.",
         "year": "Season whose qualified batters are listed (2024 or 2025)."
       }

@@ -172,7 +172,7 @@ plt.show()
 # %% [markdown]
 # ---
 # ## 5. Home Runs
-# HR totals against park-adjusted expected HR, and no-doubters.
+# HR totals against park-adjusted expected HR, and no-doubters. Savant's home run leaderboard has no season-type filter, so it counts postseason home runs too.
 
 # %%
 df_hr = fetch_years(sx.home_runs)
@@ -333,7 +333,7 @@ plt.show()
 # ## 17. Park Factors (Statcast, 2015+)
 # New in 0.6.0: Savant's own park factors, 1-year and 3-year windows (100 = neutral). The FanGraphs table is still available as `park_factors_fangraphs`.
 #
-# The Athletics have played at Sutter Health Park (Sacramento) since 2025, so Savant has no 3-year factor for it yet; it is left out of the charts.
+# Parks without three years of history have no 3-year factors (the Athletics' Sutter Health Park from 2025, the Rays' George M. Steinbrenner Field in 2025); they are left out of the charts.
 
 # %%
 df_pf = fetch_years(sx.park_factors)

@@ -142,6 +142,17 @@ def _outfield_jump(years) -> pd.DataFrame:
     return pd.concat(frames, ignore_index=True)
 
 
+def _pitch_tempo(df: pd.DataFrame) -> pd.DataFrame:
+    """Savant's pitch-tempo CSV repeats two header names: total_pitches, and median_seconds_empty in
+    the place of the runners-on median. In every row checked (2024-2026) the repeated columns hold
+    the same values as the first ones, i.e. the export carries no runners-on median. Drop the
+    copies; if Savant ever fills the second one with different values, keep it under its real name."""
+    df = df.drop(columns="total_pitches.1") if (df["total_pitches.1"] == df["total_pitches"]).all() else df
+    if (df["median_seconds_empty.1"] == df["median_seconds_empty"]).all():
+        return df.drop(columns="median_seconds_empty.1")
+    return df.rename(columns={"median_seconds_empty.1": "median_seconds_onbase"})
+
+
 def _y(fn, **kwargs):
     return lambda years: _per_year(fn, years, **kwargs)
 
@@ -157,7 +168,7 @@ BUILDERS = {
     "catcher_throwing": _y(sx.catcher_throwing),
     "home_runs": _y(sx.home_runs),
     "pitch_movement": _pitch_movement,
-    "pitch_tempo": _y(sx.pitch_tempo),
+    "pitch_tempo": lambda years: _pitch_tempo(_per_year(sx.pitch_tempo, years)),
     "pitcher_arm_angle": _y(sx.pitcher_arm_angle),
     "running_game": _y(sx.running_game),
     "swing_take": _y(sx.swing_take),
@@ -193,7 +204,12 @@ def _slice_digest(df: pd.DataFrame) -> str:
 
 
 # Keys for the near-duplicate check, first match wins.
-KEYS = (("pitcher_id", "pitch_type"), ("player_id",), ("resp_fielder_id",), ("pitcher",), ("entity_id",), ("id",), ("team",), ("name",))
+KEYS = (("pitcher_id", "pitch_type"), ("player_id",), ("resp_fielder_id",), ("pitcher",), ("entity_id",), ("id",),
+        ("name", "team"), ("team",), ("name",))
+# Tables where the near check does not apply: year_to_year lists every season as its own column, so
+# a batter qualified in both 2024 and 2025 has the same numbers in both lists by construction (an
+# identical table is still caught by the exact digest).
+NO_NEAR_CHECK = {"year_to_year"}
 NEAR_SHARED = 0.9   # share of the smaller season's keys also present in the other season
 NEAR_EQUAL = 0.9    # share of those shared keys whose numeric columns all agree
 
@@ -205,6 +221,8 @@ def _near_same(a: pd.DataFrame, b: pd.DataFrame) -> str | None:
     key = next((list(k) for k in KEYS if all(c in a.columns for c in k)), None)
     if key is None:
         return None
+    if a.duplicated(key).any() or b.duplicated(key).any():
+        return f"key {'/'.join(key)} is not unique, the near check cannot compare rows"
     num = [c for c in a.columns if c not in SEASON_COLS and c not in key and pd.api.types.is_numeric_dtype(a[c])]
     if not num:
         return None
@@ -238,7 +256,7 @@ def check(name: str, df: pd.DataFrame) -> list[str]:
     for a, b in itertools.combinations(sorted(digests), 2):
         if digests[a] == digests[b]:
             errors.append(f"{a} and {b} are the same table")
-        else:
+        elif name not in NO_NEAR_CHECK:
             near = _near_same(parts[a], parts[b])
             if near:
                 errors.append(f"{a} and {b} are nearly the same table: {near}")
@@ -248,6 +266,14 @@ def check(name: str, df: pd.DataFrame) -> list[str]:
             if missing:
                 errors.append(f"{y}: missing pitch types {sorted(missing)}")
     if name == "year_to_year":
+        # The list for season Y is Y's qualified batters, so each has an xwOBA in column Y
+        # (100% in 2024 and 2025). Another season's list relabeled as Y has batters who did not
+        # play in Y (measured: 2025's list has a 2024 value for 94%, 2024's a 2025 value for 98%).
+        for y in want:
+            if str(y) in df.columns:
+                share = df.loc[seasons == y, str(y)].notna().mean()
+                if share < 1:
+                    errors.append(f"{y}: only {share:.1%} of the listed batters have a {y} xwOBA")
         missing = [str(y) for y in YEARS if str(y) not in df.columns]
         if missing:
             errors.append(f"no column for seasons {missing}")
@@ -298,7 +324,8 @@ def main() -> int:
         per = df[_season_col(name, df)].value_counts()
         cell = " / ".join(f"{int(per[y]):,}" if y in per else "-" for y in YEARS)
         desc = desc.replace("{rows:" + name + "}", cell)
-    left = re.findall(r"\{rows:[a-z_]+\}", desc)
+    desc = desc.replace("{build_date}", time.strftime("%Y-%m-%d", time.gmtime()))
+    left = re.findall(r"\{rows:[a-z_]+\}|\{build_date\}", desc)
     if left:
         print(f"description placeholders with no table: {left}")
         return 1
