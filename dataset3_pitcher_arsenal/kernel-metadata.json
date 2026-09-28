@@ -1,0 +1,15 @@
+{
+  "id": "yasunorim/pitcher-arsenal-analysis",
+  "title": "Pitcher Arsenal Analysis",
+  "code_file": "pitcher_arsenal_analysis.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "false",
+  "enable_gpu": "false",
+  "enable_internet": "false",
+  "dataset_sources": [
+    "yasunorim/mlb-pitcher-arsenal-2020-2025"
+  ],
+  "competition_sources": [],
+  "kernel_sources": []
+}

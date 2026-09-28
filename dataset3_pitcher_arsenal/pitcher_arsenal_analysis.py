@@ -1,267 +1,276 @@
-# ---
-# Converted from pitcher_arsenal_analysis.ipynb
-# ---
+# %% [markdown]
+# # MLB Pitcher Arsenal Analysis (2020-2026)
+#
+# This notebook uses the dataset **[MLB Pitcher Arsenal 2020-2026](https://www.kaggle.com/datasets/yasunorim/mlb-pitcher-arsenal-2020-2025)**: what every MLB pitcher threw in the 2020-2026 regular seasons, pitch type by pitch type, taken from Baseball Savant's leaderboards.
+#
+# The dataset was rebuilt in September 2026. The old single file `pitcher_arsenal_evolution_2020_2025.csv` is replaced by three files:
+#
+# | File | One row per |
+# |---|---|
+# | `pitcher_arsenal.csv` | pitcher, season, pitch type |
+# | `pitcher_arsenal_wide.csv` | pitcher, season (pitch types side by side: `ff_usage_pct`, `sl_whiff_pct`, ...) |
+# | `arsenal_changes.csv` | pitcher, season, pitch type, compared with the season before |
+#
+# Contents
+# 1. Load the data
+# 2. Basic statistics
+# 3. One pitcher over time (Yusei Kikuchi)
+# 4. League-wide pitch mix, 2020-2026
+# 5. Velocity by pitch type
+# 6. Whiff rate by pitch type
+# 7. Heatmap: pitcher x pitch type (2026)
+# 8. Before and after an injury (Jacob deGrom)
+# 9. Biggest changes from 2025 to 2026
 
-# ============================================================
-# # MLB Pitcher Arsenal Evolution Analysis (2020-2025)
-# 
-# This notebook analyzes pitcher arsenal changes using the [Pitcher Arsenal Evolution Dataset](https://www.kaggle.com/datasets/yasunorim/pitcher-arsenal-evolution-2020-2025).
-# 
-# ## 📊 Analysis Contents
-# 1. Dataset Overview
-# 2. Individual Pitcher Trend Analysis (Example: Yusei Kikuchi's slider increase)
-# 3. MLB-Wide Pitch Type Trends (2020-2025)
-# 4. Pitch Velocity Changes
-# 5. Use Case Examples
-# ============================================================
-
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+# %%
+import glob
+import os
 import warnings
-warnings.filterwarnings('ignore')
 
-# Japanese font setup (for Google Colab)
-# !pip install -q japanize-matplotlib  # uncomment in Colab/notebook
-import japanize_matplotlib
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import seaborn as sns
 
-# Plot settings
-plt.style.use('seaborn-v0_8-darkgrid')
-sns.set_palette('husl')
+warnings.filterwarnings("ignore", category=FutureWarning)
+sns.set_theme(style="whitegrid")
+plt.rcParams.update({"axes.titlesize": 16, "axes.labelsize": 14, "legend.fontsize": 12,
+                     "legend.title_fontsize": 12, "xtick.labelsize": 12, "ytick.labelsize": 12})
 
-# ============================================================
-# ## 1. Load Data
-# ============================================================
+PITCH_NAMES = {"FF": "Four-seam", "SI": "Sinker", "FC": "Cutter", "SL": "Slider", "ST": "Sweeper",
+               "SV": "Slurve", "CU": "Curveball", "CH": "Changeup", "FS": "Splitter",
+               "FO": "Forkball", "SC": "Screwball", "KN": "Knuckleball"}
+MAIN = ["FF", "SI", "FC", "SL", "ST", "CU", "CH", "FS"]
+COLORS = dict(zip(MAIN, sns.color_palette("tab10", len(MAIN))))
 
-# Load from Kaggle dataset
-df = pd.read_csv('/kaggle/input/pitcher-arsenal-evolution-2020-2025/pitcher_arsenal_evolution_2020_2025.csv')
+# %% [markdown]
+# ## 1. Load the data
 
-print(f"Dataset shape: {df.shape}")
-print(f"Pitchers: {df['player_id'].nunique():,}")
-print(f"Seasons: {sorted(df['season'].unique())}")
-print(f"\nColumns: {len(df.columns)}")
+# %%
+# On Kaggle the dataset is under /kaggle/input/; KAGGLE_INPUT_ROOT lets the notebook run elsewhere.
+INPUT_ROOT = os.environ.get("KAGGLE_INPUT_ROOT", "/kaggle/input")
+paths = glob.glob(os.path.join(INPUT_ROOT, "**", "pitcher_arsenal.csv"), recursive=True)
+if not paths:
+    raise FileNotFoundError("Attach the dataset yasunorim/mlb-pitcher-arsenal-2020-2025 to this notebook.")
+DATA_DIR = os.path.dirname(paths[0])
 
-# Column list
-print("\nAll columns:")
-for i, col in enumerate(df.columns, 1):
-    print(f"{i:3d}. {col}")
+arsenal = pd.read_csv(os.path.join(DATA_DIR, "pitcher_arsenal.csv"))
+wide = pd.read_csv(os.path.join(DATA_DIR, "pitcher_arsenal_wide.csv"))
+changes = pd.read_csv(os.path.join(DATA_DIR, "arsenal_changes.csv"))
 
-# ============================================================
-# ## 2. Basic Statistics
-# ============================================================
+for name, d in [("pitcher_arsenal", arsenal), ("pitcher_arsenal_wide", wide), ("arsenal_changes", changes)]:
+    print(f"{name:22s} {d.shape[0]:6,} rows x {d.shape[1]:3d} columns")
+print("Seasons:", sorted(arsenal["season"].unique().tolist()))
+print("Pitchers:", f"{arsenal['pitcher_id'].nunique():,}")
 
-# Pitchers per season
-print("Pitchers per season:")
-print(df.groupby('season')['player_id'].nunique().sort_index())
+# %%
+arsenal.head()
 
-# Check missing values
-print("\nMissing values by column:")
-missing = df.isnull().sum()
-missing_pct = (missing / len(df) * 100).round(2)
-missing_df = pd.DataFrame({
-    'Missing': missing,
-    'Percentage': missing_pct
+# %%
+print("pitcher_arsenal.csv columns:")
+print(", ".join(arsenal.columns))
+
+# %% [markdown]
+# ## 2. Basic statistics
+#
+# Every pitcher is included, down to position players who threw a few pitches. Pitch types that never ended a plate appearance come only with usage, speed, spin and break (`in_arsenal_stats` = False). Filter on `pitches` or `total_pitches` when you want stable rates.
+
+# %%
+per_season = pd.DataFrame({
+    "pitchers": wide.groupby("season")["pitcher_id"].nunique(),
+    "pitchers_100plus": wide[wide["total_pitches"] >= 100].groupby("season")["pitcher_id"].nunique(),
+    "pitch_type_rows": arsenal.groupby("season").size(),
+    "pitches": arsenal.groupby("season")["pitches"].sum(),
 })
-print(missing_df[missing_df['Missing'] > 0].sort_values('Missing', ascending=False).head(20))
+per_season
 
-# Average usage of main pitch types
-usage_cols = [col for col in df.columns if col.endswith('_usage_pct')]
+# %%
+print("Share of rows with a missing value, pitcher_arsenal.csv (columns with any):")
+miss = arsenal.isna().mean().mul(100).round(1)
+print(miss[miss > 0].sort_values(ascending=False).to_string())
 
-print("\nAverage pitch usage across all pitchers:")
-usage_means = df[usage_cols].mean().sort_values(ascending=False)
-for col, val in usage_means.items():
-    if pd.notna(val) and val > 1.0:
-        pitch_type = col.replace('_usage_pct', '')
-        print(f"  {pitch_type:4s}: {val:5.2f}%")
+# %% [markdown]
+# ## 3. One pitcher over time: Yusei Kikuchi
+#
+# Names are written "Last, First". Savant labels sweepers (ST) separately from sliders (SL) back to 2020, so a pitch reclassified between seasons moves from one line to the other.
 
-# ============================================================
-# ## 3. Individual Pitcher Trend Analysis
-# 
-# ### Example: Yusei Kikuchi's Slider Increase
-# ============================================================
+# %%
+pitcher_name = "Kikuchi, Yusei"
+kik = wide[wide["player_name"] == pitcher_name].sort_values("season")
+cols = ["season", "team", "total_pitches"] + [f"{p.lower()}_usage_pct" for p in MAIN]
+kik[cols].set_index("season").dropna(axis=1, how="all")
 
-# Extract specific pitcher data (Example: Yusei Kikuchi)
-# Search by partial player_name match
-pitcher_name = "Yusei Kikuchi"
-df_pitcher = df[df['player_name'].str.contains(pitcher_name, case=False, na=False)].sort_values('season')
-
-if len(df_pitcher) > 0:
-    print(f"\n{pitcher_name} - Seasons found: {len(df_pitcher)}")
-    print(df_pitcher[['season', 'player_name']].to_string(index=False))
-else:
-    print(f"\n{pitcher_name} not found. Searching for similar names...")
-    # Search for similar names
-    similar = df[df['player_name'].str.contains('Kikuchi', case=False, na=False)]['player_name'].unique()
-    print(f"Found: {similar}")
-
-# Plot pitch usage trends
-if len(df_pitcher) > 0:
-    fig, ax = plt.subplots(figsize=(12, 6))
-    
-    # Plot main pitch types
-    pitch_types = ['FF', 'SI', 'SL', 'CU', 'CH', 'FC']
-    for pitch in pitch_types:
-        col = f"{pitch}_usage_pct"
-        if col in df_pitcher.columns:
-            usage = df_pitcher[col].values
-            if not all(pd.isna(usage)):
-                ax.plot(df_pitcher['season'], usage, marker='o', label=pitch, linewidth=2)
-    
-    ax.set_xlabel('Season', fontsize=12)
-    ax.set_ylabel('Usage (%)', fontsize=12)
-    ax.set_title(f'{pitcher_name} - Pitch Usage Evolution (2020-2025)', fontsize=14, fontweight='bold')
-    ax.legend(title='Pitch Type', fontsize=10)
-    ax.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.show()
-
-# ============================================================
-# ## 4. MLB-Wide Pitch Type Trends
-# ============================================================
-
-# Calculate average usage per season
-pitch_types_main = ['FF', 'SI', 'SL', 'CU', 'CH', 'FC', 'FS']
-
-trend_data = []
-for season in sorted(df['season'].unique()):
-    df_season = df[df['season'] == season]
-    for pitch in pitch_types_main:
-        col = f"{pitch}_usage_pct"
-        if col in df.columns:
-            mean_usage = df_season[col].mean()
-            if pd.notna(mean_usage):
-                trend_data.append({
-                    'season': season,
-                    'pitch_type': pitch,
-                    'avg_usage': mean_usage
-                })
-
-df_trend = pd.DataFrame(trend_data)
-df_trend.head(10)
-
-# Plot trends
-fig, ax = plt.subplots(figsize=(14, 7))
-
-for pitch in pitch_types_main:
-    df_pitch = df_trend[df_trend['pitch_type'] == pitch]
-    if len(df_pitch) > 0:
-        ax.plot(df_pitch['season'], df_pitch['avg_usage'], marker='o', label=pitch, linewidth=2.5)
-
-ax.set_xlabel('Season', fontsize=13)
-ax.set_ylabel('Average Usage (%)', fontsize=13)
-ax.set_title('MLB Pitch Type Trends (2020-2025)', fontsize=15, fontweight='bold')
-ax.legend(title='Pitch Type', fontsize=11, ncol=2)
-ax.grid(True, alpha=0.3)
+# %%
+fig, ax = plt.subplots(figsize=(12, 6))
+for p in MAIN:
+    col = f"{p.lower()}_usage_pct"
+    if kik[col].max() >= 3:  # skip pitches he threw only a handful of times
+        ax.plot(kik["season"], kik[col], marker="o", lw=2.5, color=COLORS[p], label=PITCH_NAMES[p])
+ax.set_xlabel("Season")
+ax.set_ylabel("Usage (% of his pitches)")
+ax.set_title("Yusei Kikuchi: pitch usage by season, 2020-2026")
+ax.set_xticks(kik["season"])
+ax.set_ylim(0, None)
+ax.legend(title="Pitch type", bbox_to_anchor=(1.01, 1), loc="upper left")
 plt.tight_layout()
 plt.show()
 
-# ============================================================
-# ## 5. Pitch Velocity Analysis
-# ============================================================
+# %% [markdown]
+# His slider went from 16% of his pitches in 2020 to 36% in 2025, then back to 25% in 2026, the season he added a splitter (17%). Pitches under 3% in every season are left off the chart.
 
-# Average velocity trends by pitch type
-speed_data = []
-for season in sorted(df['season'].unique()):
-    df_season = df[df['season'] == season]
-    for pitch in pitch_types_main:
-        col = f"{pitch}_avg_speed"
-        if col in df.columns:
-            mean_speed = df_season[col].mean()
-            if pd.notna(mean_speed):
-                speed_data.append({
-                    'season': season,
-                    'pitch_type': pitch,
-                    'avg_speed': mean_speed
-                })
+# %% [markdown]
+# ## 4. League-wide pitch mix, 2020-2026
+#
+# Share of all regular-season pitches thrown, by pitch type (pitch counts summed over pitchers). Knuckle curves are counted as curveballs.
 
-df_speed = pd.DataFrame(speed_data)
+# %%
+total = arsenal.groupby("season")["pitches"].sum()
+share = (arsenal.groupby(["season", "pitch_type"])["pitches"].sum()
+         .unstack().div(total, axis=0).mul(100))
+share[MAIN].round(1)
 
-# Plot
-fig, ax = plt.subplots(figsize=(14, 7))
-
-for pitch in pitch_types_main:
-    df_pitch = df_speed[df_speed['pitch_type'] == pitch]
-    if len(df_pitch) > 0:
-        ax.plot(df_pitch['season'], df_pitch['avg_speed'], marker='s', label=pitch, linewidth=2.5)
-
-ax.set_xlabel('Season', fontsize=13)
-ax.set_ylabel('Average Speed (mph)', fontsize=13)
-ax.set_title('MLB Pitch Speed Trends by Type (2020-2025)', fontsize=15, fontweight='bold')
-ax.legend(title='Pitch Type', fontsize=11, ncol=2)
-ax.grid(True, alpha=0.3)
+# %%
+fig, ax = plt.subplots(figsize=(13, 7))
+for p in MAIN:
+    ax.plot(share.index, share[p], marker="o", lw=2.5, color=COLORS[p], label=PITCH_NAMES[p])
+ax.set_xlabel("Season")
+ax.set_ylabel("Share of all pitches (%)")
+ax.set_title("MLB pitch mix by season, 2020-2026")
+ax.set_xticks(share.index)
+ax.set_ylim(0, None)
+ax.legend(title="Pitch type", bbox_to_anchor=(1.01, 1), loc="upper left")
 plt.tight_layout()
 plt.show()
 
-# ============================================================
-# ## 6. Heatmap: Pitcher × Pitch Type
-# ============================================================
+# %% [markdown]
+# ## 5. Velocity by pitch type
+#
+# Average speed weighted by the number of pitches.
 
-# Create heatmap for top 20 pitchers in 2025 season
-df_2025 = df[df['season'] == 2025].copy()
+# %%
+spd = arsenal.dropna(subset=["avg_speed"]).copy()
+spd["speed_x_pitches"] = spd["avg_speed"] * spd["pitches"]
+g = spd.groupby(["season", "pitch_type"])[["speed_x_pitches", "pitches"]].sum()
+speed = (g["speed_x_pitches"] / g["pitches"]).unstack()
+speed[MAIN].round(1)
 
-# Sort pitchers by total usage (sum of main pitch type usage as proxy)
-usage_sum = df_2025[usage_cols].sum(axis=1)
-df_2025['total_usage'] = usage_sum
-df_top20 = df_2025.nlargest(20, 'total_usage')
-
-# Prepare heatmap data
-heatmap_data = df_top20[['player_name'] + [f"{p}_usage_pct" for p in pitch_types_main]].set_index('player_name')
-heatmap_data.columns = [col.replace('_usage_pct', '') for col in heatmap_data.columns]
-
-# Plot
-fig, ax = plt.subplots(figsize=(10, 12))
-sns.heatmap(heatmap_data, annot=True, fmt='.1f', cmap='YlOrRd', cbar_kws={'label': 'Usage (%)'}, ax=ax)
-ax.set_title('Top 20 Pitchers - Pitch Usage Heatmap (2025)', fontsize=14, fontweight='bold')
-ax.set_xlabel('Pitch Type', fontsize=12)
-ax.set_ylabel('Pitcher', fontsize=12)
+# %%
+fig, ax = plt.subplots(figsize=(13, 7))
+for p in MAIN:
+    ax.plot(speed.index, speed[p], marker="s", lw=2.5, color=COLORS[p], label=PITCH_NAMES[p])
+ax.set_xlabel("Season")
+ax.set_ylabel("Average speed (mph)")
+ax.set_title("MLB average pitch speed by type, 2020-2026")
+ax.set_xticks(speed.index)
+ax.legend(title="Pitch type", bbox_to_anchor=(1.01, 1), loc="upper left")
 plt.tight_layout()
 plt.show()
 
-# ============================================================
-# ## 7. Use Case Example: Pre/Post-Injury Changes
-# 
-# Analyze arsenal changes when a pitcher returns from injury
-# ============================================================
+# %% [markdown]
+# ## 6. Whiff rate by pitch type
+#
+# `whiff_pct` is Savant's whiff%: swinging strikes divided by swings.
+#
+# **Note on the old file.** The previous `whiff_rate` column divided swinging strikes by swings *plus called strikes*, so it was far too low (2025 four-seam median 0.132, against Savant's 21.6%). This notebook did not use that column before; any analysis that did should be redone with `whiff_pct`.
+#
+# Below: the median over pitchers, for pitch types thrown 250+ times in the season.
 
-# Example: Changes across 2023→2024→2025 for a specific pitcher
-example_pitcher = "Jacob deGrom"  # Example
-df_example = df[df['player_name'].str.contains(example_pitcher, case=False, na=False)].sort_values('season')
+# %%
+MIN_PITCHES = 250
+wh = (arsenal[arsenal["pitches"] >= MIN_PITCHES]
+      .groupby(["season", "pitch_type"])["whiff_pct"].median().unstack())
+wh[MAIN].round(1)
 
-if len(df_example) >= 2:
-    print(f"\n{example_pitcher} - Arsenal Changes:")
-    
-    for pitch in pitch_types_main:
-        col_usage = f"{pitch}_usage_pct"
-        col_speed = f"{pitch}_avg_speed"
-        
-        if col_usage in df_example.columns:
-            usage_values = df_example[col_usage].values
-            speed_values = df_example[col_speed].values if col_speed in df_example.columns else []
-            
-            if not all(pd.isna(usage_values)):
-                print(f"\n{pitch}:")
-                for i, season in enumerate(df_example['season'].values):
-                    usage = usage_values[i]
-                    speed = speed_values[i] if len(speed_values) > i else np.nan
-                    if pd.notna(usage):
-                        speed_str = f", {speed:.1f} mph" if pd.notna(speed) else ""
-                        print(f"  {season}: {usage:.1f}%{speed_str}")
-else:
-    print(f"{example_pitcher} - Not enough data for comparison")
+# %%
+fig, ax = plt.subplots(figsize=(13, 7))
+for p in MAIN:
+    ax.plot(wh.index, wh[p], marker="o", lw=2.5, color=COLORS[p], label=PITCH_NAMES[p])
+ax.set_xlabel("Season")
+ax.set_ylabel("Median whiff % (swinging strikes / swings)")
+ax.set_title(f"Whiff % by pitch type (pitch types thrown {MIN_PITCHES}+ times)")
+ax.set_xticks(wh.index)
+ax.set_ylim(0, None)
+ax.legend(title="Pitch type", bbox_to_anchor=(1.01, 1), loc="upper left")
+plt.tight_layout()
+plt.show()
 
-# ============================================================
-# ## 8. Summary
-# 
-# This dataset enables the following analyses:
-# - Track individual pitcher arsenal evolution
-# - Analyze MLB-wide trends
-# - Detect changes before/after injury or trades
-# - Compare team strategies
-# - Feature engineering for machine learning models
-# 
-# ### Next Steps
-# - More detailed statistical analysis (t-tests, ANOVA, etc.)
-# - Machine learning models (performance prediction, etc.)
-# - Create interactive dashboards
-# ============================================================
+# %% [markdown]
+# ## 7. Heatmap: pitcher x pitch type (2026)
+#
+# The 20 pitchers who threw the most pitches in 2026, and how they split them.
+
+# %%
+YEAR = 2026
+top20 = wide[wide["season"] == YEAR].nlargest(20, "total_pitches")
+heat = top20.set_index("player_name")[[f"{p.lower()}_usage_pct" for p in MAIN]]
+heat.columns = MAIN
+
+fig, ax = plt.subplots(figsize=(11, 12))
+sns.heatmap(heat, annot=True, fmt=".0f", cmap="YlOrRd", vmin=0, vmax=60,
+            annot_kws={"fontsize": 11}, cbar_kws={"label": "Usage (%)"}, ax=ax)
+ax.set_title(f"Pitch usage of the 20 pitchers with the most pitches, {YEAR}")
+ax.set_xlabel("Pitch type")
+ax.set_ylabel("")
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# ## 8. Before and after an injury: Jacob deGrom
+#
+# deGrom had Tommy John surgery in June 2023 and came back at the end of 2024. The pitch counts show the gap.
+
+# %%
+dg = arsenal[arsenal["player_name"] == "deGrom, Jacob"]
+dg_usage = dg.pivot(index="season", columns="pitch_type", values="usage_pct")
+dg_speed = dg.pivot(index="season", columns="pitch_type", values="avg_speed")
+summary = pd.concat({"pitches": dg.groupby("season")["total_pitches"].first(),
+                     **{f"{p} usage %": dg_usage[p] for p in dg_usage.columns},
+                     "FF speed (mph)": dg_speed.get("FF")}, axis=1)
+summary
+
+# %%
+shown = [c for c in MAIN if c in dg_usage.columns and dg_usage[c].max() >= 3]
+fig, axes = plt.subplots(1, 2, figsize=(16, 6))
+for p in shown:
+    axes[0].plot(dg_usage.index, dg_usage[p], marker="o", lw=2.5, color=COLORS[p], label=PITCH_NAMES[p])
+axes[0].set_title("Jacob deGrom: usage by season")
+axes[0].set_xlabel("Season")
+axes[0].set_ylabel("Usage (%)")
+axes[0].set_ylim(0, None)
+for p in shown:
+    axes[1].plot(dg_speed.index, dg_speed[p], marker="s", lw=2.5, color=COLORS[p], label=PITCH_NAMES[p])
+axes[1].set_title("Jacob deGrom: average speed by season")
+axes[1].set_xlabel("Season")
+axes[1].set_ylabel("Average speed (mph)")
+for ax in axes:
+    ax.set_xticks(dg_usage.index)
+handles, labels = axes[0].get_legend_handles_labels()
+fig.legend(handles, labels, title="Pitch type", loc="upper center", ncol=len(labels), bbox_to_anchor=(0.5, 0.0))
+plt.tight_layout()
+plt.show()
+
+# %% [markdown]
+# ## 9. Biggest changes from 2025 to 2026
+#
+# `arsenal_changes.csv` has one row per pitcher, season and pitch type, with the previous season's value next to the current one. Here: the largest usage increases among pitchers who threw 1,000+ pitches in both seasons.
+
+# %%
+workload = wide.set_index(["pitcher_id", "season"])["total_pitches"]
+ch = changes[changes["season"] == 2026].copy()
+ch["pitches_now"] = workload.reindex(list(zip(ch["pitcher_id"], ch["season"]))).values
+ch["pitches_prev"] = workload.reindex(list(zip(ch["pitcher_id"], ch["prev_season"]))).values
+busy = ch[(ch["pitches_now"] >= 1000) & (ch["pitches_prev"] >= 1000)]
+cols = ["player_name", "pitch_type", "usage_pct_prev", "usage_pct", "usage_pct_delta",
+        "avg_speed_delta", "is_new"]
+busy.nlargest(15, "usage_pct_delta")[cols].reset_index(drop=True)
+
+# %% [markdown]
+# ## Summary
+#
+# The three files support:
+# - one pitcher's arsenal over time (`pitcher_arsenal_wide.csv` or `pitcher_arsenal.csv`)
+# - league-wide trends in pitch mix, speed and whiff% (`pitcher_arsenal.csv`, weighted by `pitches`)
+# - season-to-season changes, including pitches added or dropped (`arsenal_changes.csv`)
+# - features for models of pitcher performance
+#
+# Data: Baseball Savant (MLB Advanced Media). Build script and checks: [kaggle-datasets/pitcher-arsenal-dataset](https://github.com/yasumorishima/kaggle-datasets/tree/main/pitcher-arsenal-dataset).
