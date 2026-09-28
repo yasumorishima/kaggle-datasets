@@ -49,6 +49,13 @@ FIRST, LAST = 2015, 2026
 # US-born players of Japanese heritage who were in the previous version (ids checked on StatsAPI:
 # 663457 Lars Nootbaar, 641741 Gosuke Katoh, both birthCountry USA).
 HERITAGE = {663457: "Lars Nootbaar", 641741: "Gosuke Katoh"}
+# mlbam_id of the 34 rows of version 1 (the hand-built February 2026 players.csv, downloaded by
+# version number). in_previous_version refers to this version; the carried players.csv is the
+# latest version, which after the first rebuild is this build's own output.
+VERSION1_IDS = frozenset({400085, 461325, 493114, 493117, 493128, 493157, 493159, 506433, 538506,
+                          547749, 547888, 579328, 608372, 617228, 628317, 628318, 641741, 660261,
+                          660271, 660294, 663457, 673451, 673540, 673548, 673633, 680686, 683822,
+                          684007, 685493, 685503, 807799, 808963, 808967, 829272})
 # Wrong ids in the previous players.csv -> the player's real id.
 CORRECTED = {461325: 547874, 680686: 673513}
 CORRECTED_NOTE = {461325: "Tyler Clippard", 680686: "Josiah Gray"}
@@ -344,7 +351,7 @@ def players_table(bio: dict, eligible: dict, old_ids: set[int]) -> pd.DataFrame:
             "seasons": ",".join(map(str, sorted({k[1] for k in keys}))),
             "pitching_seasons": ",".join(str(k[1]) for k in keys if k[2] == "pitcher"),
             "batting_seasons": ",".join(str(k[1]) for k in keys if k[2] == "batter"),
-            "in_previous_version": "yes" if (pid in old_ids or pid in back) else "no",
+            "in_previous_version": "yes" if (pid in VERSION1_IDS or back.get(pid) in VERSION1_IDS) else "no",
             "previous_wrong_id": back.get(pid, ""),
         })
     return pd.DataFrame(rows)
@@ -382,7 +389,7 @@ def main() -> int:
           f"{len(eligible)} player-season-roles "
           f"({sum(k[2] == 'pitcher' for k in eligible)} pitching, {sum(k[2] == 'batter' for k in eligible)} batting)")
 
-    failures = [f"players: {e}" for e in old_ids_errors(old_ids, new_ids)]
+    failures = [f"players: {e}" for e in old_ids_errors(old_ids | VERSION1_IDS, new_ids)]
     for pid, y, role in RESTORED:
         if (pid, y, role) not in eligible:
             failures.append(f"restored {pid} {y} {role} has no StatsAPI regular-season games")

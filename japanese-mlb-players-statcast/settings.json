@@ -272,7 +272,7 @@
         "seasons": "Comma-separated seasons 2015-2026 with MLB regular-season games.",
         "pitching_seasons": "Seasons with rows in japanese_mlb_pitching.csv (pitches thrown in the regular season).",
         "batting_seasons": "Seasons with rows in japanese_mlb_batting.csv (plate appearances in the regular season, pitchers included).",
-        "in_previous_version": "yes if the player was in the earlier (February 2026) version of this dataset, including the two whose id was wrong there; no if new.",
+        "in_previous_version": "yes if the player was in version 1 of this dataset (hand-built, February 2026), including the two whose id was wrong there; no if new since then.",
         "previous_wrong_id": "Hisashi Iwakuma and Yuki Matsui only: the wrong id the earlier version used (461325 is Tyler Clippard, 680686 is Josiah Gray). Empty otherwise."
       }
     },
