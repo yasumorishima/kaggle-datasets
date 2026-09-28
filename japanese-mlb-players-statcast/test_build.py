@@ -57,11 +57,19 @@ def test_pitch_count() -> None:
     assert b.count_error(3, 2)
 
 
+def _hyper(rows) -> pd.DataFrame:
+    return pd.DataFrame(rows, columns=["game_year", "description", "launch_speed", "hyper_speed"])
+
+
 def test_hyper_speed_rule() -> None:
-    ok = pd.DataFrame({"launch_speed": ["63.6", "99.3", "", ""], "hyper_speed": ["88", "99.3", "", "88.0"]})
+    ok = _hyper([["2020", "hit_into_play", "63.6", "88"], ["2020", "hit_into_play", "99.3", "99.3"],
+                 ["2020", "ball", "", ""], ["2026", "foul_bunt", "", "88.0"],
+                 ["2016", "called_strike", "", "102.0"], ["2016", "swinging_strike", "", "95.1"]])
     assert b.hyper_speed_error(ok) is None
-    for ls, hs in (("63.6", "63.6"), ("", "90"), ("99.3", "")):
-        assert b.hyper_speed_error(pd.DataFrame({"launch_speed": [ls], "hyper_speed": [hs]})), (ls, hs)
+    for rows in ([["2020", "hit_into_play", "63.6", "63.6"]], [["2020", "ball", "", "90"]],
+                 [["2020", "hit_into_play", "99.3", ""]], [["2018", "called_strike", "", "102.0"]],
+                 [["2016", "foul", "", "102.0"]], [["2016", "called_strike", "", "102.0"]] * 3):
+        assert b.hyper_speed_error(_hyper(rows)), rows
 
 
 if __name__ == "__main__":

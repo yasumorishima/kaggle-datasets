@@ -194,6 +194,13 @@ def statsapi(seasons: list[int]) -> tuple[dict, dict]:
 # ---------------------------------------------------------------- Savant
 
 
+# hyper_speed without a launch_speed, on pitches without contact: seen only in 2015-2017, at most 2
+# rows per player-season-role.
+STRAY_HYPER_LAST_YEAR = 2017
+STRAY_HYPER_MAX = 2
+CONTACT_DESCRIPTIONS = {"hit_into_play", "foul", "foul_tip", "foul_bunt", "bunt_foul_tip", "foul_pitchout"}
+
+
 def fetch_savant(role: str, pid: int, season: int) -> pd.DataFrame:
     time.sleep(SAVANT_SLEEP)
     key = ROLES[role][2]
@@ -248,11 +255,20 @@ def count_error(n_pitched: int, pitches: int) -> str | None:
 
 def hyper_speed_error(df: pd.DataFrame) -> str | None:
     """The column description says: hyper_speed = max(launch_speed, 88) where launch_speed is filled;
-    empty or 88 where it is not (Savant fills 88 on some foul bunts with no launch speed, seen in 2026)."""
+    where it is not, hyper_speed is empty or 88 (Savant fills 88 on some foul bunts, seen in 2026),
+    except a few 2015-2017 pitches without contact that carry a stray value (6 rows in the
+    2015-2026 build: 2015-04-25, 2016-04-24, 2016-04-28, 2016-05-08, 2016-07-10, 2017-05-02)."""
     ls = pd.to_numeric(df["launch_speed"].replace("", None), errors="coerce")
     hs = pd.to_numeric(df["hyper_speed"].replace("", None), errors="coerce")
-    bad = (ls.notna() & (hs.isna() | ((hs - ls.clip(lower=88)).abs() > 1e-9))) | (ls.isna() & hs.notna() & (hs != 88))
-    return f"hyper_speed != max(launch_speed, 88) on {int(bad.sum())} rows" if bad.any() else None
+    year = pd.to_numeric(df["game_year"], errors="coerce")
+    stray = ls.isna() & hs.notna() & (hs != 88)
+    bad = (ls.notna() & (hs.isna() | ((hs - ls.clip(lower=88)).abs() > 1e-9))) | (
+        stray & ((year > STRAY_HYPER_LAST_YEAR) | df["description"].isin(CONTACT_DESCRIPTIONS)))
+    if bad.any():
+        return f"hyper_speed != max(launch_speed, 88) on {int(bad.sum())} rows"
+    if stray.sum() > STRAY_HYPER_MAX:
+        return f"{int(stray.sum())} rows with hyper_speed but no launch_speed (more than {STRAY_HYPER_MAX})"
+    return None
 
 
 def old_ids_errors(old_ids: set[int], new_ids: set[int]) -> list[str]:
