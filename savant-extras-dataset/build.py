@@ -147,7 +147,10 @@ def _pitch_tempo(df: pd.DataFrame) -> pd.DataFrame:
     the place of the runners-on median. In every row checked (2024-2026) the repeated columns hold
     the same values as the first ones, i.e. the export carries no runners-on median. Drop the
     copies; if Savant ever fills the second one with different values, keep it under its real name."""
-    df = df.drop(columns="total_pitches.1") if (df["total_pitches.1"] == df["total_pitches"]).all() else df
+    if "total_pitches.1" in df.columns and (df["total_pitches.1"] == df["total_pitches"]).all():
+        df = df.drop(columns="total_pitches.1")
+    if "median_seconds_empty.1" not in df.columns:
+        return df
     if (df["median_seconds_empty.1"] == df["median_seconds_empty"]).all():
         return df.drop(columns="median_seconds_empty.1")
     return df.rename(columns={"median_seconds_empty.1": "median_seconds_onbase"})
