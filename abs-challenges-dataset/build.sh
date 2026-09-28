@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Called by .github/workflows/update-dataset.yml before `kaggle datasets create/version`.
-# Builds the upload folder $DIR/_build (the CSVs, file_descriptions.txt and dataset-metadata.json)
+# Builds the upload folder $DIR/_build (the CSVs and dataset-metadata.json)
 # and fails without writing anything if build.py's gates fail. Nothing here needs Kaggle
 # credentials, so they are removed from the environment.
 set -euo pipefail
