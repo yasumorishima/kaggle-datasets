@@ -1,0 +1,93 @@
+rows 10557  dropped (missing coords etc.) 0  games 2402  dates 2026-03-25..2026-09-27
+            n     won
+role                 
+batter   4766  0.4885
+catcher  5612  0.5855
+pitcher   179  0.3966
+  gate catcher: ours 5612 vs Savant 5613 (-0.02%)
+  gate batter: ours 4766 vs Savant 4765 (+0.02%)
+  gate pitcher: ours 179 vs Savant 179 (+0.00%)
+review stored on: {'pitch': 7896, 'play': 2661}
+
+share of challenges where the call as it stands ends the PA (strike three for the batter / ball four for the catcher):
+{'batter': 0.34, 'catcher': 0.136, 'pitcher': 0.201}
+share where overturning ends the PA (ball four for the batter / strike three for the catcher):
+{'batter': 0.161, 'catcher': 0.309, 'pitcher': 0.324}
+              size                   mean                
+role        batter catcher pitcher batter catcher pitcher
+situation                                                
+flip_ends      273    1261      35  0.491   0.556   0.343
+neither       2874    3590     108  0.539   0.621   0.472
+stands_ends   1619     761      36  0.399   0.466   0.222
+
+by strikes before the pitch:
+            size                   mean                
+role      batter catcher pitcher batter catcher pitcher
+strk                                                   
+0 strikes   1617    2238      70  0.587   0.607   0.457
+1 strikes   1530    1642      51  0.479   0.618   0.412
+2 strikes   1619    1732      58  0.399   0.527   0.310
+
+which edge (share / overturned):
+edge     bottom   side    top
+role                         
+batter    0.343  0.496  0.160
+catcher   0.298  0.509  0.193
+pitcher   0.196  0.508  0.296
+edge     bottom   side    top
+role                         
+batter    0.506  0.441  0.596
+catcher   0.571  0.602  0.564
+pitcher   0.457  0.374  0.396
+
+by the team's failed challenges earlier in the same game (capped at 2):
+        size                   mean                
+role  batter catcher pitcher batter catcher pitcher
+pf                                                 
+0     3292.0  4201.0   117.0  0.493   0.584   0.393
+1     1413.0  1327.0    62.0  0.470   0.578   0.403
+2       61.0    84.0     NaN  0.689   0.774     NaN
+
+by inning:
+       size                   mean                
+role batter catcher pitcher batter catcher pitcher
+late                                              
+1-6    2775    3530     120  0.520   0.629   0.467
+7-8    1225    1294      37  0.477   0.559   0.270
+9th+    766     788      22  0.392   0.433   0.227
+
+share by distance band (inches on the wrong side of the call, my zone):
+band       <-2  -2..-1  -1..0   0..1   1..2    >=2
+role                                              
+batter   0.183   0.181  0.227  0.197  0.117  0.096
+catcher  0.066   0.097  0.193  0.262  0.214  0.169
+pitcher  0.190   0.151  0.212  0.251  0.101  0.095
+band     <-2  -2..-1  -1..0   0..1   1..2  >=2
+role                                          
+batter   0.0   0.039  0.465  0.832  0.995  1.0
+catcher  0.0   0.015  0.235  0.626  0.962  1.0
+pitcher  0.0   0.000  0.263  0.578  1.000  1.0
+
+by inning: share of challenges on pitches whose call looks clearly right / clearly wrong (my zone):
+     clearly_right                 clearly_wrong                
+role        batter catcher pitcher        batter catcher pitcher
+late                                                            
+1-6          0.332   0.129   0.275         0.225   0.423   0.233
+7-8          0.393   0.179   0.459         0.209   0.353   0.108
+9th+         0.432   0.284   0.500         0.176   0.253   0.136
+
+by strikes: same shares
+        clearly_right                 clearly_wrong                
+role           batter catcher pitcher        batter catcher pitcher
+strikes                                                            
+0               0.274   0.151   0.286         0.288   0.404   0.214
+1               0.366   0.143   0.275         0.203   0.415   0.196
+2               0.451   0.197   0.466         0.148   0.325   0.172
+
+batters on strike-three calls vs other strike calls: same shares
+             clearly_right  clearly_wrong
+stands_ends                              
+False                0.319          0.246
+True                 0.451          0.148
+
+per-batter sd of sz_top / sz_bot (batters with >= 5 challenges): {'top_sd': 0.0, 'bot_sd': 0.0}
