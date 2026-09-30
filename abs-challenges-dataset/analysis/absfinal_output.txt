@@ -1,0 +1,179 @@
+rows (12132, 211) (477, 176)
+
+== boards: share won, expected, runs ==
+     board     who  players    n  won  share    lo    hi    exp  won_minus_exp   runs  runs_gained  runs_lost   k  bb
+AAA 2025 R  batter      667 4487 2022  0.451 0.436 0.465 2271.0         -249.0  -72.6        411.3      517.6 595 302
+AAA 2025 R catcher      170 4810 2585  0.537 0.523 0.551 3074.1         -489.1 -175.6        460.7      467.3 631 279
+AAA 2026 R  batter      679 4433 1993  0.450 0.435 0.464 2145.8         -152.8  -47.9        421.5      512.4 619 290
+AAA 2026 R catcher      175 5349 3095  0.579 0.565 0.592 3323.4         -228.4 -134.6        552.1      473.3 745 336
+AAA 2026 R pitcher      202  326  124  0.380 0.329 0.434 3323.4        -3199.4  -25.9         23.0       42.4  26  21
+MLB 2025 S  batter      375  600  301  0.502 0.462 0.542  359.7          -58.7  -13.2         57.4       62.8  86  39
+MLB 2025 S catcher      154  594  324  0.545 0.505 0.585  426.1         -102.1  -22.6         56.1       56.7  90  25
+MLB 2026 R  batter      526 4765 2328  0.489 0.474 0.503 2327.3            0.7    3.7        440.1      511.8 646 324
+MLB 2026 R catcher      107 5613 3287  0.586 0.573 0.598 3223.5           63.5 -122.3        597.3      488.5 913 355
+MLB 2026 R pitcher      109  179   71  0.397 0.328 0.470 3223.5        -3152.5  -13.5         13.0       22.7  18   8
+MLB 2026 S  batter      522  887  405  0.457 0.424 0.489  486.5          -81.5  -31.4         77.6      101.2 121  49
+MLB 2026 S catcher      187  975  582  0.597 0.566 0.627  735.8         -153.8  -21.6        101.3       82.5 176  60
+
+== MLB 2026 R: columns sample for one catcher ==
+                                             8893
+challenge_type                            catcher
+player_id                                  661388
+player_name                     William Contreras
+team_abbr                                     MIL
+parent_org                                    MIL
+level                                         MLB
+year                                         2026
+game_type                                       R
+n_total_sample                               5454
+exp_chal                               137.522229
+exp_chal_gained                         82.531709
+exp_chal_lost                           54.990519
+exp_chal_runs_gained                    13.097528
+exp_chal_runs_lost                      11.548009
+n_challenges                                  185
+n_overturns                                   105
+net_chal_gained                         22.468291
+net_chal_lost                           25.009481
+n_chal_reasonable                             127
+n_chal_reasonable_opps                        382
+n_fails                                        80
+n_chal_runs                             -0.377436
+n_chal_runs_gained                      16.422564
+n_chal_runs_lost                             16.8
+net_chal_gained_runs                     9.465237
+net_chal_lost_runs                      14.650908
+n_strikeouts                                   25
+n_walks                                         9
+player_team                                   158
+n_teams                                         1
+n_levels                                        1
+player_at_bat                                 NaN
+parent_org_code                               158
+levelCode                                       1
+rate_challenges                           0.03392
+exp_rate_challenges                      0.025215
+exp_rate_challenges_diff                 0.008705
+rate_overturns                           0.567568
+exp_rate_overturns                       0.600134
+net_net_chal                             -2.54119
+exp_chal_runs                            1.549519
+net_net_runs                            -5.185671
+rate_chal_reasonable                     0.686486
+rate_reasonable_opp_taken                0.332461
+runs_gained_per_chal                     0.088771
+exp_runs_gained_per_chal                 0.095239
+n_total_sample_against                     2770.0
+exp_chal_against                       115.792457
+exp_chal_gained_against                 50.460464
+exp_chal_lost_against                   65.331993
+exp_chal_runs_gained_against             8.185497
+exp_chal_runs_lost_against              13.719719
+n_challenges_against                        125.0
+n_overturns_against                          53.0
+net_chal_gained_against                  2.539536
+net_chal_lost_against                    6.668007
+n_chal_reasonable_against                    73.0
+n_chal_reasonable_opps_against              353.0
+n_fails_against                              72.0
+n_chal_runs_against                     -6.556953
+
+== MLB 2026 R catchers >= 10 challenges: n=91; top/bottom by overturns vs expected ==
+     player_name team_abbr  n_challenges  n_overturns    share  exp_chal_gained  overturns_vs_exp  net_net_runs  n_chal_runs_gained  rate_challenges
+   J.T. Realmuto       PHI            86           70 0.813953        82.868419         38.023233      2.910786           11.784320         0.014566
+  Dillon Dingler       DET           108           71 0.657407        65.452094         33.545719     -0.513470           11.653338         0.019647
+    Carson Kelly       CHC            93           64 0.688172        71.083009         18.915063      0.127211           11.640133         0.018864
+  Hunter Goodman       COL           113           77 0.681416        55.871971         18.468561      0.657386           13.670490         0.024640
+  Salvador Perez        KC            65           46 0.707692        41.051827         15.747695      0.747751            8.265852         0.029031
+Tyler Stephenson       CIN           136           93 0.683824        94.548827         14.795140     -0.103743           13.940859         0.023805
+ Victor Caratini       MIN           127           75 0.590551        47.113472         14.182549     -2.463062           12.145865         0.037854
+      Sandy León       ATL            21           16 0.761905        10.602789         12.730335      0.561475            2.634373         0.027237
+   player_name team_abbr  n_challenges  n_overturns    share  exp_chal_gained  overturns_vs_exp  net_net_runs  n_chal_runs_gained  rate_challenges
+   Edgar Quero       CWS            93           46 0.494624        39.320882        -32.596293     -3.718667           11.995747         0.039207
+Samuel Basallo       BAL            60           30 0.500000        50.852309        -23.043073     -2.812275            5.484542         0.021292
+  Gary Sánchez       MIL            65           34 0.523077        27.203599        -21.698204     -2.441078            6.455613         0.036765
+   Drew Millas       WSH            51           22 0.431373        23.942894        -18.610484     -3.628741            3.494940         0.024194
+Drew Cavanaugh        SF            44           21 0.477273        28.116373        -16.669090     -2.461953            3.346199         0.021287
+      player_name team_abbr  n_challenges  n_overturns    share  exp_chal_gained  overturns_vs_exp  net_net_runs  n_chal_runs_gained  rate_challenges
+William Contreras       MIL           185          105 0.567568        82.531709          1.587281     -5.185671           16.422564         0.033920
+ Tyler Stephenson       CIN           136           93 0.683824        94.548827         14.795140     -0.103743           13.940859         0.023805
+   Patrick Bailey        SF           135           75 0.555556        57.123654        -15.553819     -4.950432           11.534502         0.029341
+     Austin Wells       NYY           131           82 0.625954        64.557393          1.212228     -1.411686           15.242099         0.025299
+  Victor Caratini       MIN           127           75 0.590551        47.113472         14.182549     -2.463062           12.145865         0.037854
+
+== MLB 2026 R batters >= 10 challenges: n=182; top/bottom by overturns vs expected ==
+    player_name team_abbr  n_challenges  n_overturns    share  exp_chal_gained  overturns_vs_exp  net_net_runs  n_chal_runs_gained  rate_challenges
+    Steven Kwan       CLE            16            9 0.562500         9.832439         16.456193      0.346875            0.844681         0.026446
+     Nick Kurtz       ATH            11            9 0.818182         9.396367         13.410566      0.630580            1.745566         0.040146
+   Carson Benge       NYM            10            7 0.700000         7.191880         11.732862      1.378743            1.224125         0.023923
+      Alec Bohm       PHI            23           13 0.565217         8.162813         11.648472      0.866578            2.817704         0.061662
+    Myles Straw       TOR            14           10 0.714286         5.197328          9.503084      1.250439            1.835586         0.053435
+ Gabriel Moreno        AZ            25           17 0.680000        11.445434          9.356554      1.164293            2.680494         0.050000
+Davis Schneider       TOR            17           14 0.823529         5.073017          8.687539      1.398722            2.438027         0.125926
+      CJ Abrams       WSH            14           12 0.857143         6.006470          8.680779      1.425074            1.472648         0.040462
+     player_name team_abbr  n_challenges  n_overturns    share  exp_chal_gained  overturns_vs_exp  net_net_runs  n_chal_runs_gained  rate_challenges
+     Josh Naylor       SEA            26            7 0.269231         3.812318        -14.122409     -2.625529            0.685418         0.096296
+Ceddanne Rafaela       BOS            24            6 0.250000         5.030325        -11.597675     -2.256821            1.172375         0.085409
+ Junior Caminero        TB            24            9 0.375000         8.099793        -11.527824     -1.218587            1.636093         0.058537
+  Travis Bazzana       CLE            18            8 0.444444         7.626322        -10.954153      0.251889            2.704242         0.057508
+       Cam Smith       HOU            30           11 0.366667         5.827616        -10.257569     -1.861224            1.334216         0.098684
+   player_name team_abbr  n_challenges  n_overturns    share  exp_chal_gained  overturns_vs_exp  net_net_runs  n_chal_runs_gained  rate_challenges
+   Sal Stewart       CIN            51           28 0.549020        13.591842          0.140433     -0.879224            4.446822         0.130435
+  Bryce Harper       PHI            47           21 0.446809         5.524182         -0.116856     -2.116744            2.937298         0.166667
+   Jose Altuve       HOU            37           21 0.567568         9.124018          1.462373      0.009064            5.552692         0.117834
+  Gary Sánchez       MIL            37           14 0.378378         5.483649         -7.489849     -2.175979            2.611490         0.157447
+Nolan Schanuel       LAA            36           20 0.555556         7.003645         -0.167668     -0.168485            3.472393         0.121622
+
+== batters: chase vs success (MLB 2026 R, >=100 PA, >=10 challenges) ==
+chase vs share: rho -0.197 p 0.00768 n 182
+chase vs overturns_vs_exp: rho -0.097 p 0.191 n 182
+chase vs rate_challenges: rho -0.043 p 0.357 n 465
+      batters      chase     n  won         exp  share           ci  exp_share
+tier                                                                          
+low       155  24.806202  1869  959  939.829981  0.513  0.490-0.536      0.503
+mid       155  30.400000  1536  738  726.140234  0.480  0.456-0.505      0.473
+high      155  36.884058  1197  547  557.109782  0.457  0.429-0.485      0.465
+lowest chase batters with >=10 challenges:
+    player_name  sc_bat_chase_percent  n_challenges    share
+   Taylor Ward             14.905363            15 0.533333
+ Austin Martin             18.014184            20 0.550000
+Edouard Julien             18.584071            20 0.450000
+Gleyber Torres             18.901099            15 0.533333
+ Trent Grisham             19.246436            17 0.470588
+highest chase:
+       player_name  sc_bat_chase_percent  n_challenges    share
+ Ceddanne Rafaela             45.266005            24 0.250000
+      Jake Mangum             45.129870            13 0.307692
+Michael Harris II             45.120934            12 0.333333
+    Ernie Clement             44.444444            13 0.615385
+      Jorge Mateo             44.181034            13 0.307692
+
+== catchers: framing proxy ==
+proxy vs framing runs rho +0.834 p 1.6e-15 n 56
+AAA 2025 proxy vs overturns_vs_exp rho +0.144 p 0.116 n 121
+AAA 2026 proxy vs overturns_vs_exp rho +0.080 p 0.376 n 125
+MLB 2026 proxy vs overturns_vs_exp rho +0.032 p 0.763 n 91
+
+== AAA 2025 -> MLB 2026 ==
+rate_challenges        batter  n  63 rho +0.370 p 0.00287
+rate_challenges        catcher n  51 rho +0.446 p 0.00103
+rate_overturns         batter  n  63 rho +0.316 p 0.0118
+rate_overturns         catcher n  51 rho +0.236 p 0.0961
+overturns_vs_exp       batter  n  63 rho +0.049 p 0.701
+overturns_vs_exp       catcher n  51 rho +0.206 p 0.148
+sc_bat_chase_percent   batter  n  63 rho +0.679 p 9.27e-10
+carry examples (batters, highest AAA challenge rate):
+     player_name  rate_challenges_aaa2025  rate_challenges_mlb2026  n_challenges_aaa2025  n_challenges_mlb2026
+Victor Mesa Jr.                 0.175439                 0.093750                    10                     9
+   Gary Sánchez                 0.162791                 0.157447                     7                    37
+ Travis Bazzana                 0.160000                 0.057508                    12                    18
+    Ronny Simon                 0.156863                 0.138889                    32                     5
+  Spencer Jones                 0.142857                 0.056604                    18                     6
+
+== age (MLB 2026 R batters >=100 PA) ==
+           batters     n  won         exp  share           ci  won_minus_exp
+age_group                                                                   
+<=25           143  1384  674  668.647293  0.487  0.461-0.513            5.4
+26-29          181  1874  904  879.030098  0.482  0.460-0.505           25.0
+30-33          107  1010  485  483.495819  0.480  0.450-0.511            1.5
+34+             34   334  181  191.906786  0.542  0.488-0.595          -10.9

@@ -1,0 +1,55 @@
+share of challenged pitches by clarity (my zone):
+ cl       clearly right call  clearly wrong call  within an inch
+role                                                           
+batter                0.364               0.213           0.424
+catcher               0.163               0.383           0.454
+pitcher               0.341               0.196           0.464
+
+share won inside each clarity class:
+ cl       clearly right call  clearly wrong call  within an inch
+role                                                           
+batter                0.020               0.997           0.635
+catcher               0.009               0.979           0.460
+pitcher               0.000               1.000           0.434
+cl       clearly right call  clearly wrong call  within an inch
+role                                                           
+batter                 1733                1014            2019
+catcher                 913                2149            2550
+pitcher                  61                  35              83
+
+catchers' rates with batters' mix: 0.407 (actual catchers 0.586, batters 0.488)
+batters' rates with catchers' mix: 0.674
+
+batter challenges joined to chase tiers: 4603 of 4766
+cl    clearly right call  clearly wrong call  within an inch
+tier                                                        
+low                0.333               0.222           0.445
+mid                0.374               0.212           0.414
+high               0.393               0.191           0.415
+cl    clearly right call  clearly wrong call  within an inch
+tier                                                        
+low                0.023               1.000           0.636
+mid                0.023               0.994           0.631
+high               0.008               0.996           0.634
+      size   mean
+tier             
+low   1870  0.513
+mid   1536  0.480
+high  1197  0.457
+J.T. Realmuto: 70/86  exp_chal 138.0  challenges/exp 0.62  P(>=) 5.71e-06 (0.0003 over 44)  P(<=) 1.0000 (1.000 over 44)
+Francisco Alvarez: 42/90  exp_chal 80.9  challenges/exp 1.11  P(>=) 9.91e-01 (1.0000 over 44)  P(<=) 0.0151 (0.487 over 44)
+Salvador Perez: 46/65  exp_chal 65.0  challenges/exp 1.00  P(>=) 2.89e-02 (0.7244 over 44)  P(<=) 0.9847 (1.000 over 44)
+catchers >=60: challenges/expected vs share won rho -0.257 p 0.0917 n 44
+    player_name  n_challenges  exp_chal  sel  share
+  J.T. Realmuto            86    137.99 0.62   0.81
+ Samuel Basallo            60     78.98 0.76   0.50
+   Carson Kelly            93    121.18 0.77   0.69
+Adley Rutschman            68     85.72 0.79   0.68
+ Gabriel Moreno            81     99.87 0.81   0.62
+pitcher rows exp_chal sum 5500.0 catcher 5500.0
+           size    sum  mean
+age_group                   
+<=25        143 -33.14 -0.23
+26-29       181  51.85  0.29
+30-33       107 -32.09 -0.30
+34+          34  24.82  0.73
