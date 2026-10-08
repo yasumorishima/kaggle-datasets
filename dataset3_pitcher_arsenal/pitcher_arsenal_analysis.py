@@ -173,13 +173,15 @@ for i, s in enumerate(seasons):
             frames.append((f"{s} → {seasons[i + 1]}", a + (b - a) * t))
 frames += [frames[-1]] * HOLD
 
-# Gate: a frame labelled with a season must show exactly that season's row of `share`.
+# Gate on the frame list: a frame labelled with a season shows exactly that season's row of
+# `share`, and every frame in between stays between the two seasons it joins.
 for label, values in frames:
     if label.isdigit():
         assert np.array_equal(values, share.loc[int(label), order].to_numpy()), label
+    else:
+        a, b = (share.loc[int(y), order].to_numpy() for y in label.split(" → "))
+        assert np.all(values >= np.minimum(a, b) - 1e-9) and np.all(values <= np.maximum(a, b) + 1e-9), label
 assert delta[up] > 0 > delta[down], "title needs one pitch that rose and one that fell"
-# The big season label sits bottom right; the three lowest bars must stay clear of it.
-assert mix.iloc[:, :3].to_numpy().max() < 0.5 * mix.to_numpy().max() * 1.15, "label would cover a bar"
 
 fig, ax = plt.subplots(figsize=(11, 6.5))
 fig.subplots_adjust(left=0.17, right=0.95, top=0.86, bottom=0.11)  # fixed, so nothing jumps
@@ -187,6 +189,7 @@ xmax = float(mix.to_numpy().max()) * 1.15
 ypos = np.arange(len(order))
 bars = ax.barh(ypos, mix.iloc[0], color=[COLORS[p] for p in order], height=0.7)
 ax.set_yticks(ypos, [PITCH_NAMES[p] for p in order])
+assert [t.get_text() for t in ax.get_yticklabels()] == [PITCH_NAMES[p] for p in order]
 ax.set_xlim(0, xmax)
 ax.set_xlabel("Share of all MLB pitches (%)")
 ax.grid(axis="y", visible=False)
@@ -196,20 +199,40 @@ year_text = ax.text(0.97, 0.06, "", transform=ax.transAxes, ha="right", va="bott
 labels = [ax.text(0, y, "", va="center", fontsize=12) for y in ypos]
 
 
+renderer = fig.canvas.get_renderer()
+
+
 def draw(i):
     label, values = frames[i]
     for bar, txt, v in zip(bars, labels, values):
         bar.set_width(v)
         txt.set_position((v + xmax * 0.01, txt.get_position()[1]))
         txt.set_text(f"{v:.1f}%")
-    year_text.set_text(label.split(" ")[0] if label.isdigit() else label)
+    year_text.set_text(label)
+    # Gate on what is actually drawn: widths, colours, and the season label clear of every
+    # bar and value label (measured extents, not a guessed margin).
+    assert np.array_equal([b.get_width() for b in bars], values), i
+    assert [b.get_facecolor()[:3] for b in bars] == [tuple(COLORS[p]) for p in order], i
+    year_box = year_text.get_window_extent(renderer)
+    for art in [*bars, *labels]:
+        assert not year_box.overlaps(art.get_window_extent(renderer)), (i, label)
     return [*bars, *labels, year_text]
 
+
+for i in range(len(frames)):  # run every frame's gate before writing anything
+    draw(i)
 
 gif_path = "pitch_mix_2020_2026.gif"
 FuncAnimation(fig, draw, frames=len(frames), blit=False).save(gif_path, writer=PillowWriter(fps=12))
 plt.close(fig)
-print(f"{len(frames)} frames, {len(frames) / 12:.1f} s, {os.path.getsize(gif_path) / 1024:.0f} KB")
+from PIL import Image as PILImage
+
+with PILImage.open(gif_path) as im:  # measured from the file: Pillow merges repeated frames
+    ms = 0
+    for k in range(im.n_frames):
+        im.seek(k)
+        ms += im.info.get("duration", 0)
+print(f"{len(frames)} frames drawn, {ms / 1000:.1f} s, {os.path.getsize(gif_path) / 1024:.0f} KB")
 display(Image(filename=gif_path))
 
 # %% [markdown]
