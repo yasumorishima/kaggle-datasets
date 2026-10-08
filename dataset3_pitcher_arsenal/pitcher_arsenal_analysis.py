@@ -143,6 +143,76 @@ plt.tight_layout()
 plt.show()
 
 # %% [markdown]
+# The same numbers as a moving chart: each bar is a pitch type's share of all pitches, and the bars slide from one season to the next. The order of the bars stays fixed (2020 share, largest on top) so a bar's movement is the change, not a re-sort. Before anything is drawn, every season's frame is checked against the table above.
+
+# %%
+from IPython.display import Image, display
+from matplotlib.animation import FuncAnimation, PillowWriter
+
+seasons = list(share.index)
+order = share.loc[seasons[0], MAIN].sort_values().index.tolist()  # largest 2020 share ends on top
+mix = share.loc[seasons, order]
+
+# Title from the data: the biggest rise and the biggest fall, first season to last.
+delta = mix.iloc[-1] - mix.iloc[0]
+up, down = delta.idxmax(), delta.idxmin()
+PLURAL = {"FF": "four-seamers", "SI": "sinkers", "FC": "cutters", "SL": "sliders",
+          "ST": "sweepers", "CU": "curveballs", "CH": "changeups", "FS": "splitters"}
+title = (f"{PLURAL[up].capitalize()} up {delta[up]:.1f} pts, {PLURAL[down]} "
+         f"down {abs(delta[down]):.1f} pts, {seasons[0]}-{seasons[-1]}")
+
+STEPS, HOLD = 12, 8  # frames between seasons / frames held on each season
+frames = []  # (label, values) per frame
+for i, s in enumerate(seasons):
+    frames += [(str(s), mix.loc[s].to_numpy())] * HOLD
+    if i + 1 < len(seasons):
+        a, b = mix.loc[s].to_numpy(), mix.loc[seasons[i + 1]].to_numpy()
+        for k in range(1, STEPS):
+            t = k / STEPS
+            t = t * t * (3 - 2 * t)  # ease in and out
+            frames.append((f"{s} → {seasons[i + 1]}", a + (b - a) * t))
+frames += [frames[-1]] * HOLD
+
+# Gate: a frame labelled with a season must show exactly that season's row of `share`.
+for label, values in frames:
+    if label.isdigit():
+        assert np.array_equal(values, share.loc[int(label), order].to_numpy()), label
+assert delta[up] > 0 > delta[down], "title needs one pitch that rose and one that fell"
+# The big season label sits bottom right; the three lowest bars must stay clear of it.
+assert mix.iloc[:, :3].to_numpy().max() < 0.5 * mix.to_numpy().max() * 1.15, "label would cover a bar"
+
+fig, ax = plt.subplots(figsize=(11, 6.5))
+fig.subplots_adjust(left=0.17, right=0.95, top=0.86, bottom=0.11)  # fixed, so nothing jumps
+xmax = float(mix.to_numpy().max()) * 1.15
+ypos = np.arange(len(order))
+bars = ax.barh(ypos, mix.iloc[0], color=[COLORS[p] for p in order], height=0.7)
+ax.set_yticks(ypos, [PITCH_NAMES[p] for p in order])
+ax.set_xlim(0, xmax)
+ax.set_xlabel("Share of all MLB pitches (%)")
+ax.grid(axis="y", visible=False)
+fig.suptitle(title, fontsize=17, fontweight="bold")
+year_text = ax.text(0.97, 0.06, "", transform=ax.transAxes, ha="right", va="bottom",
+                    fontsize=40, fontweight="bold", color="0.35")
+labels = [ax.text(0, y, "", va="center", fontsize=12) for y in ypos]
+
+
+def draw(i):
+    label, values = frames[i]
+    for bar, txt, v in zip(bars, labels, values):
+        bar.set_width(v)
+        txt.set_position((v + xmax * 0.01, txt.get_position()[1]))
+        txt.set_text(f"{v:.1f}%")
+    year_text.set_text(label.split(" ")[0] if label.isdigit() else label)
+    return [*bars, *labels, year_text]
+
+
+gif_path = "pitch_mix_2020_2026.gif"
+FuncAnimation(fig, draw, frames=len(frames), blit=False).save(gif_path, writer=PillowWriter(fps=12))
+plt.close(fig)
+print(f"{len(frames)} frames, {len(frames) / 12:.1f} s, {os.path.getsize(gif_path) / 1024:.0f} KB")
+display(Image(filename=gif_path))
+
+# %% [markdown]
 # ## 5. Velocity by pitch type
 #
 # Average speed weighted by the number of pitches.
