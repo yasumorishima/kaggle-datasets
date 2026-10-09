@@ -7,7 +7,11 @@ This folder holds the analysis notebook for the Kaggle dataset
   [Pitcher Arsenal Analysis](https://www.kaggle.com/code/yasunorim/pitcher-arsenal-analysis)
   (league pitch mix, speed and whiff% by season; one pitcher's arsenal over time; the 2026 arsenals
   of the 20 pitchers with the most pitches; 2025 to 2026 changes).
+- `pitch_mix_2020_2026.gif`: the league pitch mix by season, drawn by the notebook on Kaggle
+  (every season frame is checked against the table before drawing).
 - `kernel-metadata.json`: used by the "Push Notebook to Kaggle" workflow.
+
+![League pitch mix 2020-2026](pitch_mix_2020_2026.gif)
 
 The dataset itself is built by [`pitcher-arsenal-dataset/build.py`](../pitcher-arsenal-dataset/build.py)
 in GitHub Actions (rebuilt September 2026). The earlier hand-built version, its generator notebook
