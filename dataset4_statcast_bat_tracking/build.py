@@ -174,6 +174,8 @@ NEUTRAL_GAPS: dict[int, tuple[frozenset, float | None]] = {
     823669: (_NO_BAT_ALIGN_ARM, None),             # 2026-08-13 Field of Dreams
     823745: (_NO_BAT_ALIGN_ARM, None),             # 2026-08-23 Williamsport
 }
+# An XWOBA_EXCEPTIONS entry for a NEUTRAL_GAPS game would be ignored (the neutral floor wins).
+assert not set(XWOBA_EXCEPTIONS) & set(NEUTRAL_GAPS), "game in both XWOBA_EXCEPTIONS and NEUTRAL_GAPS"
 # Savant finishes backfilling a day's derived columns within a day or two; a build for a season
 # that ended less than this many days ago is refused unless --allow-recent is given.
 SETTLE_DAYS = 3
