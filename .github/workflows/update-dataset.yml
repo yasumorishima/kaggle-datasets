@@ -47,6 +47,24 @@ jobs:
       - name: Install kaggle
         run: pip install kaggle
 
+      # The kaggle CLI refuses a subtitle outside 20-80 characters (and, on create, a title outside
+      # 6-50), but only at upload time; checking first saves a long build (run 37963654939 built for
+      # 1.6 h, then failed on the subtitle).
+      - name: Check title and subtitle length
+        env:
+          DIR: ${{ inputs.dataset_dir }}
+        run: |
+          python - "$DIR/dataset-metadata.json" <<PY
+          import json, sys
+          m = json.load(open(sys.argv[1], encoding="utf-8"))
+          bad = [f"{k} is {len(m.get(k) or str())} characters (allowed {lo}-{hi})"
+                 for k, lo, hi in (("title", 6, 50), ("subtitle", 20, 80))
+                 if not lo <= len(m.get(k) or "") <= hi]
+          if bad:
+              sys.exit("; ".join(bad))
+          print("title and subtitle lengths OK")
+          PY
+
       # A dataset whose CSVs are generated (not committed) ships a build.sh that writes the
       # upload folder to $DIR/_build. Without one, the folder itself is uploaded as before.
       - name: Build dataset files
