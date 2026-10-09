@@ -63,3 +63,15 @@ IL(t) = the batter has an IL placement with effective date in [t, t + 30 days].
   injury sentence is "other".
 - Each keyword also matches its singular/plural form: StatsAPI writes both "bicep" and "biceps",
   "rib" and "ribs", "finger" and "fingers". No keyword is added or removed.
+
+### 2026-10-09, second (before any all-MLB pitch data was fetched; from a pre-run code audit, no outcome read)
+- Upper vs lower body gets a decision rule: the secondary prediction is supported only if the ratio
+  RR_upper / RR_lower, from a paired bootstrap over batters (the same 2,000 resamples for both, seed 1),
+  has a 95% interval whose lower bound is above 1. Point estimates alone are not read as support.
+- Keyword matching in the injury sentence is by word start (a word that begins with the keyword), which keeps
+  the frozen "contains" meaning inside the injury sentence while still ignoring names: the first amendment's
+  whole-word match had dropped "quadriceps", "ribcage" and "fingernail". Keywords are unchanged.
+- Placements of the same batter less than 10 days apart are one stint (the earliest is kept). This changes
+  only the per-placement counts (sensitivity), not the day-level outcome.
+- H2 baselines need at least 20 days with a defined signal in the previous season (as in the Ohtani
+  notebook); with data from 2024 on, H2 covers 2025 and 2026 only.

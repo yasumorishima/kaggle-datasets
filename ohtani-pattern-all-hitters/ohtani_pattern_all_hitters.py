@@ -6,7 +6,7 @@
 # - a **bat-speed drop of 3.1 mph over ten game days** in early August 2026, larger than any 10-day change in the healthy seasons it was compared with, a month before his injured list;
 # - **process flags** (exit velocity, hard contact, bat speed) that went up about as often as the **results** flag, sometimes earlier, sometimes with nothing following.
 #
-# One player is not a pattern. This notebook runs the same measurements on **every MLB hitter, 2024-2026**, against every injured-list placement in those seasons. The tests, thresholds and success criteria were committed before any of this data was fetched: [FREEZE_population.md](https://github.com/yasumorishima/kaggle-datasets/blob/main/ohtani-2026-early-warning/FREEZE_population.md) (md5 `741041dcc9c1dac20834b4b5c4073318`, commit `6d208bf`).
+# One player is not a pattern. This notebook runs the same measurements on **every MLB hitter, 2024-2026**, against every injured-list placement in those seasons. The tests, thresholds and success criteria were committed before any of this data was fetched: [FREEZE_population.md](https://github.com/yasumorishima/kaggle-datasets/blob/main/ohtani-2026-early-warning/FREEZE_population.md) (first committed in `6d208bf` before any data was fetched; two amendments `fe1e790` and the one shipped with this notebook, also before the data, are at the end of that file).
 #
 # Data: **[MLB Statcast + Bat Tracking 2024-2026](https://www.kaggle.com/datasets/yasunorim/mlb-statcast-bat-tracking-2024-2025)** (every regular-season pitch). Injured-list placements and player positions come from MLB StatsAPI (internet on).
 
@@ -87,17 +87,19 @@ for y in YEARS:
 tx = pd.DataFrame(rows)
 tx["effective"] = pd.to_datetime(tx["effective"].str[:10])
 act = tx[tx.kind == "activated"].drop_duplicates(["batter", "effective"])
-il = tx[tx.kind == "placed"].drop_duplicates(["batter", "effective"]).reset_index(drop=True)
+il = tx[tx.kind == "placed"].drop_duplicates(["batter", "effective"]).sort_values(["batter", "effective"])
+# Placements of the same batter less than 10 days apart are one stint; keep the earliest (AMENDMENTS 2).
+il = il[~(il.batter.eq(il.batter.shift()) & (il.effective - il.effective.shift()).dt.days.lt(10))].reset_index(drop=True)
 UPPER = ["shoulder", "elbow", "wrist", "hand", "finger", "thumb", "biceps", "triceps", "forearm", "back",
          "oblique", "rib", "intercostal", "neck"]
 LOWER = ["hamstring", "quad", "calf", "knee", "ankle", "foot", "hip", "groin", "toe", "heel", "achilles"]
-# Region from the injury sentence only (the last sentence), word by word, singular or plural (AMENDMENTS).
+# Region from the injury sentence only (the last sentence), by word start (AMENDMENTS 1 and 2).
 last = il.description.str.strip().str.rstrip(".").str.split(". ", regex=False).str[-1].str.lower()
 injury = last.where(~last.str.contains("injured list"), "")
 
 
 def has(words):
-    pat = r"\b(?:" + "|".join(w.rstrip("s") + "s?" for w in words) + r")\b"
+    pat = r"\b(?:" + "|".join(w.rstrip("s") for w in words) + r")"
     return injury.str.contains(pat, regex=True)
 
 
@@ -276,7 +278,9 @@ print(tab_h1.round(4).to_string())
 auc = roc_auc_score(h1.il30, -h1.d10)
 print(f"AUC of -D10 for IL within 30 days: {auc:.4f}")
 
-assert h1.groupby("batter", sort=False).day.is_monotonic_increasing.all()  # the concatenations above align
+# The concatenations above align only if each batter's rows are contiguous and in day order.
+assert (h1.batter != h1.batter.shift()).sum() == h1.batter.nunique()
+assert not h1.duplicated(["batter", "day"]).any() and h1.groupby("batter", sort=False).day.is_monotonic_increasing.all()
 
 # %%
 # Sensitivity: of the IL placements whose 30 days before are covered by D10, how many had a drop?
@@ -336,11 +340,29 @@ for reg in ["upper", "lower"]:
     h1[f"il30_{reg}"] = np.concatenate([nxt(b, g.day.to_numpy()) for b, g in h1.groupby("batter", sort=False)]) <= HORIZON
     by_region[reg] = rr_boot(h1, h1["drop"], out=f"il30_{reg}")
 print(pd.DataFrame(by_region).T.round(4).to_string())
+# Decision rule (AMENDMENTS 2): paired bootstrap over batters of RR_upper / RR_lower, lower bound > 1.
+rng1 = np.random.default_rng(1)
+g = pd.DataFrame({"b": h1.batter, "e": h1["drop"]})
+cols = []
+for reg in ["upper", "lower"]:
+    o = h1[f"il30_{reg}"]
+    g[f"oe_{reg}"], g[f"ou_{reg}"] = g.e & o, ~g.e & o
+g["u"] = ~g.e
+per = g.groupby("b")[["e", "u", "oe_upper", "ou_upper", "oe_lower", "ou_lower"]].sum().astype(float).to_numpy()
+w = rng1.multinomial(len(per), np.full(len(per), 1 / len(per)), size=2000) @ per
+rr_u = (w[:, 2] / w[:, 0]) / (w[:, 3] / w[:, 1])
+rr_l = (w[:, 4] / w[:, 0]) / (w[:, 5] / w[:, 1])
+ratio = rr_u / rr_l
+lo_r, hi_r = np.nanpercentile(ratio, [2.5, 97.5])
+tot = per.sum(0)
+point = ((tot[2] / tot[0]) / (tot[3] / tot[1])) / ((tot[4] / tot[0]) / (tot[5] / tot[1]))
+print(f"RR_upper / RR_lower = {point:.3f} (95% {lo_r:.3f}-{hi_r:.3f}); "
+      f"{'supported' if lo_r > 1 else 'not supported'}; resamples dropped as undefined: {int(np.isnan(ratio).sum())}")
 
 # %% [markdown]
 # ## H2: do process flags warn earlier than the results flag?
 #
-# The level rule from the Ohtani notebook (worse than the 5th percentile of the batter's previous season, 3 game days in a row), for every batter-season with a previous season of 300+ PA. If process signals warned earlier than results, their relative risk would be clearly higher than wOBA's.
+# The level rule from the Ohtani notebook (worse than the 5th percentile of the batter's previous season, 3 game days in a row), for every batter-season with a previous season of 300+ PA. A relative risk does not measure lead time; what it can show is whether a process flag carries more injury risk than the results flag. Baselines need 20+ days in the previous season, so with data from 2024 this covers 2025 and 2026.
 
 # %%
 h2 = {}
