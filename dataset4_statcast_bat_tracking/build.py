@@ -173,6 +173,9 @@ SETTLE_DAYS = 3
 # MAX_GAP_GAME_SHARE of its scheduled games gapped still fails (largest measured: 2024, 0.036).
 GAP_SETTLED_DAYS = 30
 MAX_GAP_GAME_SHARE = 0.05
+# Only these columns (measured by Hawk-Eye tracking, each with a per-game floor) may be a settled gap;
+# any other column empty for a game, or thin xwOBA / delta_run_exp shares, still fails the build.
+GAP_ALLOWED = frozenset(BAT_TRACKING) | frozenset(COLUMN_FLOORS)
 GAP_COLUMNS = ["season", "game_date", "game_pk", "pitches", "empty_columns", "partial_columns",
                "xwoba_share", "dre_share"]
 
@@ -449,9 +452,17 @@ def incomplete_games(df: pd.DataFrame, allowed_empty: set[str]) -> pd.DataFrame:
     g = g.assign(xw_floor=xw_floor)
     g = g[g["pitches"] >= GAME_CHECK_MIN_PITCHES]
     low = (g["xwoba_share"] < g["xw_floor"]) | (g["dre_share"] < GAME_FLOORS["dre_share"])
+    # stale exceptions are reported separately; "has_problem" ignores them so a game whose only
+    # finding is a stale entry is not a gap. Decided on unrounded shares.
+    g["share_low"] = low.to_numpy()
+    g["has_problem"] = (low | (g["empty_columns"].str.len() > 0)
+                        | g["partial_columns"].apply(lambda v: any(not x.startswith("stale ") for x in v))).to_numpy()
     bad = g[low | (g["empty_columns"].str.len() > 0) | (g["partial_columns"].str.len() > 0)]
-    return bad[["game_pk", "listed", "pitches", "bat_share", "xwoba_share", "xw_floor", "dre_share",
-                "empty_columns", "partial_columns"]].round(3)
+    out = bad[["game_pk", "listed", "pitches", "bat_share", "xwoba_share", "xw_floor", "dre_share",
+               "empty_columns", "partial_columns", "share_low", "has_problem"]].copy()
+    num = ["bat_share", "xwoba_share", "xw_floor", "dre_share"]
+    out[num] = out[num].round(3)  # for printing only; decisions above use the unrounded shares
+    return out
 
 
 def partial_columns(game: pd.DataFrame, pk: int = 0) -> list[str]:
@@ -526,12 +537,16 @@ def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Pat
                 UNTIL_COLS if d in last_days else set())
             settled = (date.today() - d).days > GAP_SETTLED_DAYS
             home_rows = df[~df["game_pk"].astype(int).isin(neutral)]
+            day_empty_tracking: list[str] = []
             if len(home_rows) >= NULL_CHECK_MIN_ROWS:
                 empty = [c for c in SAVANT_COLUMNS if c not in allowed and home_rows[c].isna().all()]
-                if empty and not settled:
-                    errors.append(f"{d}: {len(home_rows)} pitches at home venues but empty {empty} "
+                # Settled days: a tracking column empty all day is a gap (every game of the day is listed
+                # below, short games included); any other column empty all day still fails.
+                hard = [c for c in empty if not (settled and c in GAP_ALLOWED)]
+                day_empty_tracking = [c for c in empty if settled and c in GAP_ALLOWED]
+                if hard:
+                    errors.append(f"{d}: {len(home_rows)} pitches at home venues but empty {hard} "
                                   "(not backfilled yet?)")
-                # settled: every game of the day is listed below with its empty columns
             nd = df[df["game_pk"].astype(int).isin(neutral)]
             if len(nd):
                 gone = _empty_by_game(nd, [c for c in KEPT if c not in GAME_OPTIONAL | SINCE_COLS | UNTIL_COLS])
@@ -544,22 +559,29 @@ def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Pat
                 for x in r["partial_columns"]:
                     if x.startswith("stale "):
                         errors.append(f"{d}: game {r['game_pk']}: {x}")
-            low = low.assign(partial_columns=[[x for x in v if not x.startswith("stale ")]
-                                              for v in low["partial_columns"]])
-            has_cols = np.array([len(a) > 0 or len(b) > 0 for a, b in zip(low["partial_columns"], low["empty_columns"])],
-                                dtype=bool)
-            low = low[has_cols
-                      | (low["xwoba_share"] < low["xw_floor"]) | (low["dre_share"] < GAME_FLOORS["dre_share"])]
-            if len(low) and settled:
-                for r in low.to_dict("records"):
-                    gaps.append({"season": year, "game_date": d.isoformat(), "game_pk": int(r["game_pk"]),
-                                 "pitches": int(r["pitches"]), "empty_columns": ";".join(r["empty_columns"]),
-                                 "partial_columns": ";".join(r["partial_columns"]),
-                                 "xwoba_share": r["xwoba_share"], "dre_share": r["dre_share"]})
-            elif len(low):
-                errors.append(f"{d}: {len(low)} games below the per-game completeness floors "
+            low = low[low["has_problem"]]
+            hard_rows, gap_rows = [], []
+            for r in low.to_dict("records"):
+                parts = [x for x in r["partial_columns"] if not x.startswith("stale ")]
+                ok_gap = (settled and not r["share_low"] and all(c in GAP_ALLOWED for c in r["empty_columns"])
+                          and all(x.split()[0] in GAP_ALLOWED for x in parts))
+                (gap_rows if ok_gap else hard_rows).append({**r, "partial_columns": parts})
+            for r in gap_rows:
+                gaps.append({"season": year, "game_date": d.isoformat(), "game_pk": int(r["game_pk"]),
+                             "pitches": int(r["pitches"]), "empty_columns": ";".join(r["empty_columns"]),
+                             "partial_columns": ";".join(r["partial_columns"]),
+                             "xwoba_share": r["xwoba_share"], "dre_share": r["dre_share"]})
+            if day_empty_tracking:  # list every home game of the day, including short ones
+                listed = {int(r["game_pk"]) for r in gap_rows}
+                for pk, gm in home_rows.groupby(home_rows["game_pk"].astype("int64")):
+                    if int(pk) not in listed:
+                        gaps.append({"season": year, "game_date": d.isoformat(), "game_pk": int(pk),
+                                     "pitches": len(gm), "empty_columns": ";".join(day_empty_tracking),
+                                     "partial_columns": "", "xwoba_share": None, "dre_share": None})
+            if hard_rows:
+                errors.append(f"{d}: {len(hard_rows)} games below the per-game completeness floors "
                               "(not backfilled yet?)")
-                for r in low.to_dict("records"):
+                for r in hard_rows:
                     errors.append(f"{d}:   game {r['game_pk']} ({r['pitches']} pitches): "
                                   f"empty {r['empty_columns']}, partial {r['partial_columns']}, xwoba_share "
                                   f"{r['xwoba_share']}, dre_share {r['dre_share']}")
@@ -612,9 +634,10 @@ def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Pat
     if full and empty_all:
         errors.append(f"columns empty in every row of the season: {empty_all}")
     n_sched = sched["game_pk"].nunique()
-    if full and len(gaps) > MAX_GAP_GAME_SHARE * n_sched:
-        errors.append(f"{len(gaps)} of {n_sched} games have settled tracking gaps (> {MAX_GAP_GAME_SHARE:.0%})")
-    print(f"  {year}: {len(gaps)} games with settled tracking gaps", flush=True)
+    n_gap = len({g["game_pk"] for g in gaps})
+    if full and n_gap > MAX_GAP_GAME_SHARE * n_sched:
+        errors.append(f"{n_gap} of {n_sched} games have settled tracking gaps (> {MAX_GAP_GAME_SHARE:.0%})")
+    print(f"  {year}: {n_gap} games with settled tracking gaps", flush=True)
     share = float(slim["bat_speed"].notna().mean()) if rows else 0.0
     summary = {"gaps": gaps, "rows": rows, "games": len(pks), "bat_speed_share": share, "key": key,
                "digest": _content_digest(slim) if rows else None,

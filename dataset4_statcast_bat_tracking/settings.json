@@ -444,16 +444,16 @@
       }
     },
     "tracking_gaps.csv": {
-      "description": "Games played more than 30 days before the build whose Statcast tracking columns are empty or thinly filled for the whole game (for example no bat tracking anywhere in the 2024 opening week, or a park's spin tracking down for a game). These gaps are permanent in Baseball Savant; the rows are in the season files with those columns empty. Neutral-site games without Hawk-Eye are not listed here.",
+      "description": "Games played more than 30 days before the build in which Statcast tracking columns (bat tracking, spin, arm angle, extension, effective speed, fielding alignment) are empty or thinly filled (for example no bat tracking anywhere in the 2024 opening week, or a park's spin tracking down for a game). These gaps are permanent in Baseball Savant; the rows are in the season files with those columns empty. Gaps already expected for a neutral-site game without Hawk-Eye (Seoul, London, Mexico City, ...) are not listed; anything beyond them is. Only tracking columns can be a listed gap: any other column empty for a game fails the build.",
       "columns": {
         "season": "Season (2024-2026).",
         "game_date": "Game date (YYYY-MM-DD).",
         "game_pk": "MLB game id; joins to game_pk in the season files.",
-        "pitches": "Pitches in the game.",
+        "pitches": "Pitches of this game on this date (a game resumed on another date has one row per date).",
         "empty_columns": "Columns empty on every pitch of the game, separated by ';'.",
         "partial_columns": "Columns filled on fewer pitches than the usual floor, as 'column share<floor', separated by ';'.",
-        "xwoba_share": "Share of batted balls with expected wOBA.",
-        "dre_share": "Share of pitches with delta_run_exp."
+        "xwoba_share": "Share of batted balls with expected wOBA (empty when the row comes from a whole-day gap).",
+        "dre_share": "Share of pitches with delta_run_exp (empty when the row comes from a whole-day gap)."
       }
     }
   }
