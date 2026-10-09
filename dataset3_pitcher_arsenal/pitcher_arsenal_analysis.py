@@ -213,9 +213,13 @@ def draw(i):
     # bar and value label (measured extents, not a guessed margin).
     assert np.array_equal([b.get_width() for b in bars], values), i
     assert [b.get_facecolor()[:3] for b in bars] == [tuple(COLORS[p]) for p in order], i
-    year_box = year_text.get_window_extent(renderer)
+    assert year_text.get_text() == label, i
+    assert [t.get_text() for t in labels] == [f"{v:.1f}%" for v in values], i
+    year_box, ax_box = year_text.get_window_extent(renderer), ax.get_window_extent(renderer)
     for art in [*bars, *labels]:
-        assert not year_box.overlaps(art.get_window_extent(renderer)), (i, label)
+        box = art.get_window_extent(renderer)
+        assert not year_box.overlaps(box), (i, label)
+        assert box.x1 <= ax_box.x1, (i, label)  # nothing runs past the right edge
     return [*bars, *labels, year_text]
 
 
