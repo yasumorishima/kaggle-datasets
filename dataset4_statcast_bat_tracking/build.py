@@ -608,12 +608,15 @@ def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Pat
     if full and rows < ROW_FLOOR:
         errors.append(f"{rows:,} rows < {ROW_FLOOR:,}")
     if full:
-        # Savant's grouped count leaves out pitches with no pitch_type (automatic balls/strikes of
-        # the pitch clock): it matched the rows with a pitch_type exactly on every day checked.
+        # Savant's grouped count (group_by=team) is every regular-season pitch except the pitch-clock
+        # automatic balls/strikes. It includes real pitches whose tracking failed and so have no
+        # pitch_type (2024: 285, e.g. 167 on 2024-05-23), so it is compared with the non-automatic
+        # rows, which matched it on every day checked.
         total = savant_total(year)
-        typed = int(slim["pitch_type"].notna().sum())
-        if typed != total:
-            errors.append(f"{typed:,} rows with a pitch_type but Savant counts {total:,} regular-season pitches")
+        thrown = int((~slim["description"].isin(AUTOMATIC)).sum())
+        if thrown != total:
+            errors.append(f"{thrown:,} rows that are not automatic balls/strikes but Savant counts {total:,} "
+                          "regular-season pitches")
     for d in (start, end):
         if d in fetched and per_day.get(d, 0) == 0:
             errors.append(f"regular-season day {d} has no pitches")
