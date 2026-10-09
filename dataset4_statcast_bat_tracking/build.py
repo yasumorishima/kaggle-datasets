@@ -132,10 +132,22 @@ GAME_FLOOR_EXCEPTIONS: dict[int, dict[str, float]] = {
     778564: {"miss_distance": 0.02},
 }
 assert all(c in COLUMN_FLOORS for e in GAME_FLOOR_EXCEPTIONS.values() for c in e)
+# Measured games whose xwOBA share is below GAME_FLOORS for a known reason: game_pk -> floor just
+# below the measured share. Same rules as GAME_FLOOR_EXCEPTIONS (a game_pk in no schedule is an
+# error; an entry the game no longer needs is reported as stale). Measured 2026-10-10 on Savant.
+XWOBA_EXCEPTIONS: dict[int, float] = {
+    # 2024-05-23: 21 of 46 batted balls (innings 1-6) have no launch speed or angle, so no xwOBA.
+    746474: 0.54,
+    # 2025-06-29: 22 of 50 batted balls (innings 1-4) have no launch speed or angle.
+    777317: 0.55,
+    # 2026-04-29: 19 of 49 batted balls (innings 6-9) have launch speed and angle but no xwOBA.
+    824445: 0.61,
+}
 # Neutral-site games without full Hawk-Eye coverage, measured 2026-09-28 game by game:
 # game_pk -> (columns empty on every pitch of that game, xwOBA floor override or None).
 # A listed column must be either empty for the whole game or pass the normal rules (COLUMN_FLOORS):
-# partly filled below its floor fails. Only games StatsAPI flags as neutral, in that season's
+# partly filled below its floor fails, except on settled days, where a tracking column is listed in
+# tracking_gaps.csv instead. Only games StatsAPI flags as neutral, in that season's
 # schedule, may be listed. Neutral games not listed here (Tokyo 778563/778564, Bristol 776907,
 # 824705 at Tropicana Field) have full coverage and get the normal rules; a new relocated game with
 # gaps therefore fails and has to be measured and added here.
@@ -448,16 +460,27 @@ def incomplete_games(df: pd.DataFrame, allowed_empty: set[str]) -> pd.DataFrame:
     g["listed"] = [int(pk) in NEUTRAL_GAPS for pk in g["game_pk"]]
     g["empty_columns"] = [[c for c in empty[pk] if c not in gap[0]] for pk, gap in zip(g["game_pk"], gaps)]
     g["partial_columns"] = [partial_columns(df[df["game_pk"].astype("int64") == pk], int(pk)) for pk in g["game_pk"]]
-    xw_floor = [GAME_FLOORS["xwoba_share"] if gap[1] is None else gap[1] for gap in gaps]
+    xw_floor = [gap[1] if gap[1] is not None else XWOBA_EXCEPTIONS.get(int(pk), GAME_FLOORS["xwoba_share"])
+                for pk, gap in zip(g["game_pk"], gaps)]
     g = g.assign(xw_floor=xw_floor)
+    # An XWOBA_EXCEPTIONS entry the game no longer needs is a mistake in this file (stale).
+    g["partial_columns"] = [
+        v + ([f"stale XWOBA_EXCEPTIONS entry: xwoba_share {xs:.3f}>={GAME_FLOORS['xwoba_share']}"]
+             if int(pk) in XWOBA_EXCEPTIONS and xs >= GAME_FLOORS["xwoba_share"] else [])
+        for pk, v, xs in zip(g["game_pk"], g["partial_columns"], g["xwoba_share"])]
     g = g[g["pitches"] >= GAME_CHECK_MIN_PITCHES]
     low = (g["xwoba_share"] < g["xw_floor"]) | (g["dre_share"] < GAME_FLOORS["dre_share"])
     # stale exceptions are reported separately; "has_problem" ignores them so a game whose only
     # finding is a stale entry is not a gap. Decided on unrounded shares.
     g["share_low"] = low.to_numpy()
-    g["has_problem"] = (low | (g["empty_columns"].str.len() > 0)
-                        | g["partial_columns"].apply(lambda v: any(not x.startswith("stale ") for x in v))).to_numpy()
-    bad = g[low | (g["empty_columns"].str.len() > 0) | (g["partial_columns"].str.len() > 0)]
+    # Plain bool arrays: on a frame with no game of GAME_CHECK_MIN_PITCHES pitches, .str/.apply on
+    # the empty object columns would not give booleans.
+    has_empty = np.array([len(v) > 0 for v in g["empty_columns"]], dtype=bool)
+    has_part = np.array([any(not x.startswith("stale ") for x in v) for v in g["partial_columns"]], dtype=bool)
+    any_part = np.array([len(v) > 0 for v in g["partial_columns"]], dtype=bool)
+    low = low.to_numpy(dtype=bool)
+    g["has_problem"] = low | has_empty | has_part
+    bad = g[low | has_empty | any_part]
     out = bad[["game_pk", "listed", "pitches", "bat_share", "xwoba_share", "xw_floor", "dre_share",
                "empty_columns", "partial_columns", "share_low", "has_problem"]].copy()
     num = ["bat_share", "xwoba_share", "xw_floor", "dre_share"]
@@ -792,7 +815,8 @@ def main() -> int:
         if got != set(YEARS):
             failures.append(f"seasons with rows {sorted(got)} != {list(YEARS)}")
         scheduled = set().union(*(summaries[y]["scheduled"] for y in YEARS))
-        for name, table in (("NEUTRAL_GAPS", NEUTRAL_GAPS), ("GAME_FLOOR_EXCEPTIONS", GAME_FLOOR_EXCEPTIONS)):
+        for name, table in (("NEUTRAL_GAPS", NEUTRAL_GAPS), ("GAME_FLOOR_EXCEPTIONS", GAME_FLOOR_EXCEPTIONS),
+                            ("XWOBA_EXCEPTIONS", XWOBA_EXCEPTIONS)):
             unscheduled = sorted(set(table) - scheduled)
             if unscheduled:
                 failures.append(f"{name} games in no {list(YEARS)} regular-season schedule: {unscheduled}")

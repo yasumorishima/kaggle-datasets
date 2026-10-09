@@ -452,8 +452,8 @@
         "pitches": "Pitches of this game on this date (a game resumed on another date has one row per date).",
         "empty_columns": "Columns empty on every pitch of the game, separated by ';'.",
         "partial_columns": "Columns filled on fewer pitches than the usual floor, as 'column share<floor', separated by ';'.",
-        "xwoba_share": "Share of batted balls with expected wOBA (empty when the row comes from a whole-day gap).",
-        "dre_share": "Share of pitches with delta_run_exp (empty when the row comes from a whole-day gap)."
+        "xwoba_share": "Share of batted balls with expected wOBA (empty for a game under 100 pitches listed because a tracking column was empty all day).",
+        "dre_share": "Share of pitches with delta_run_exp (empty for a game under 100 pitches listed because a tracking column was empty all day)."
       }
     }
   }
