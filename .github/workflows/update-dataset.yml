@@ -47,8 +47,9 @@ jobs:
       - name: Install kaggle
         run: pip install kaggle
 
-      # Kaggle rejects a version whose title is not 6-50 or subtitle not 20-80 characters, but only
-      # at upload time; checking first saves a long build (run 37963654939 built for 1.6 h, then failed).
+      # The kaggle CLI refuses a subtitle outside 20-80 characters (and, on create, a title outside
+      # 6-50), but only at upload time; checking first saves a long build (run 37963654939 built for
+      # 1.6 h, then failed on the subtitle).
       - name: Check title and subtitle length
         env:
           DIR: ${{ inputs.dataset_dir }}
