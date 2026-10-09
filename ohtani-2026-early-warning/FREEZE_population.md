@@ -53,3 +53,13 @@ IL(t) = the batter has an IL placement with effective date in [t, t + 30 days].
 - A batter playing hurt may also be benched before the IL, which removes his days from the data.
 - Returning from an IL stint can itself lower bat speed; days within 30 days after an activation are
   reported both included (primary) and excluded (sensitivity).
+
+## AMENDMENTS
+
+### 2026-10-09 (before any all-MLB pitch data was fetched; found in a code test on 13 cached days, no outcome read)
+- Body-region matching is done on the injury sentence only (the last sentence of the transaction text,
+  e.g. "Right bicep neuritis."), word by word, instead of the whole description. The whole text also holds
+  team and player names, where a keyword can sit inside a word ("hand" in "Chandler"). A transaction with no
+  injury sentence is "other".
+- Each keyword also matches its singular/plural form: StatsAPI writes both "bicep" and "biceps",
+  "rib" and "ribs", "finger" and "fingers". No keyword is added or removed.
