@@ -165,6 +165,16 @@ NEUTRAL_GAPS: dict[int, tuple[frozenset, float | None]] = {
 # Savant finishes backfilling a day's derived columns within a day or two; a build for a season
 # that ended less than this many days ago is refused unless --allow-recent is given.
 SETTLE_DAYS = 3
+# A game whose tracking columns are still empty or thin this many days after it was played is a
+# permanent gap, not a backfill in progress: the full 2024-2026 build of 2026-10-09 found 104 such
+# games (2024: 87, mostly opening week 2024-03-28.. with no bat tracking at any park; 2025: 10;
+# 2026: 7), unchanged months later. Settled gaps are listed in tracking_gaps.csv instead of failing
+# the build; younger games still fail (Savant may not have finished). A season with more than
+# MAX_GAP_GAME_SHARE of its scheduled games gapped still fails (largest measured: 2024, 0.036).
+GAP_SETTLED_DAYS = 30
+MAX_GAP_GAME_SHARE = 0.05
+GAP_COLUMNS = ["season", "game_date", "game_pk", "pitches", "empty_columns", "partial_columns",
+               "xwoba_share", "dre_share"]
 
 # Savant's statcast_search CSV header (type=details), as of 2026-09-28.
 SAVANT_COLUMNS = (
@@ -440,8 +450,8 @@ def incomplete_games(df: pd.DataFrame, allowed_empty: set[str]) -> pd.DataFrame:
     g = g[g["pitches"] >= GAME_CHECK_MIN_PITCHES]
     low = (g["xwoba_share"] < g["xw_floor"]) | (g["dre_share"] < GAME_FLOORS["dre_share"])
     bad = g[low | (g["empty_columns"].str.len() > 0) | (g["partial_columns"].str.len() > 0)]
-    return bad[["game_pk", "listed", "pitches", "bat_share", "xwoba_share", "dre_share", "empty_columns",
-                "partial_columns"]].round(3)
+    return bad[["game_pk", "listed", "pitches", "bat_share", "xwoba_share", "xw_floor", "dre_share",
+                "empty_columns", "partial_columns"]].round(3)
 
 
 def partial_columns(game: pd.DataFrame, pk: int = 0) -> list[str]:
@@ -494,6 +504,7 @@ def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Pat
     nonnull = pd.Series(0, index=SAVANT_COLUMNS, dtype="int64")
     rows = 0
     per_day = {}
+    gaps: list[dict] = []
     t0 = time.time()
     try:
         for d in days:
@@ -513,12 +524,14 @@ def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Pat
             nonnull += df[SAVANT_COLUMNS].notna().sum()
             allowed = set(DROPPED_EMPTY) | (SINCE_COLS if d in first_days else set()) | (
                 UNTIL_COLS if d in last_days else set())
+            settled = (date.today() - d).days > GAP_SETTLED_DAYS
             home_rows = df[~df["game_pk"].astype(int).isin(neutral)]
             if len(home_rows) >= NULL_CHECK_MIN_ROWS:
                 empty = [c for c in SAVANT_COLUMNS if c not in allowed and home_rows[c].isna().all()]
-                if empty:
+                if empty and not settled:
                     errors.append(f"{d}: {len(home_rows)} pitches at home venues but empty {empty} "
                                   "(not backfilled yet?)")
+                # settled: every game of the day is listed below with its empty columns
             nd = df[df["game_pk"].astype(int).isin(neutral)]
             if len(nd):
                 gone = _empty_by_game(nd, [c for c in KEPT if c not in GAME_OPTIONAL | SINCE_COLS | UNTIL_COLS])
@@ -526,7 +539,24 @@ def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Pat
                     tag = "listed in NEUTRAL_GAPS" if pk in NEUTRAL_GAPS else "not listed: normal rules"
                     print(f"    neutral game {pk} ({tag}): {len(cs)} columns empty {cs}", flush=True)
             low = incomplete_games(df, allowed)
-            if len(low):
+            # A stale GAME_FLOOR_EXCEPTIONS entry is a mistake in this file, never a data gap.
+            for r in low.to_dict("records"):
+                for x in r["partial_columns"]:
+                    if x.startswith("stale "):
+                        errors.append(f"{d}: game {r['game_pk']}: {x}")
+            low = low.assign(partial_columns=[[x for x in v if not x.startswith("stale ")]
+                                              for v in low["partial_columns"]])
+            has_cols = np.array([len(a) > 0 or len(b) > 0 for a, b in zip(low["partial_columns"], low["empty_columns"])],
+                                dtype=bool)
+            low = low[has_cols
+                      | (low["xwoba_share"] < low["xw_floor"]) | (low["dre_share"] < GAME_FLOORS["dre_share"])]
+            if len(low) and settled:
+                for r in low.to_dict("records"):
+                    gaps.append({"season": year, "game_date": d.isoformat(), "game_pk": int(r["game_pk"]),
+                                 "pitches": int(r["pitches"]), "empty_columns": ";".join(r["empty_columns"]),
+                                 "partial_columns": ";".join(r["partial_columns"]),
+                                 "xwoba_share": r["xwoba_share"], "dre_share": r["dre_share"]})
+            elif len(low):
                 errors.append(f"{d}: {len(low)} games below the per-game completeness floors "
                               "(not backfilled yet?)")
                 for r in low.to_dict("records"):
@@ -581,8 +611,12 @@ def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Pat
     empty_all = [c for c in KEPT if nonnull[c] == 0]
     if full and empty_all:
         errors.append(f"columns empty in every row of the season: {empty_all}")
+    n_sched = sched["game_pk"].nunique()
+    if full and len(gaps) > MAX_GAP_GAME_SHARE * n_sched:
+        errors.append(f"{len(gaps)} of {n_sched} games have settled tracking gaps (> {MAX_GAP_GAME_SHARE:.0%})")
+    print(f"  {year}: {len(gaps)} games with settled tracking gaps", flush=True)
     share = float(slim["bat_speed"].notna().mean()) if rows else 0.0
-    summary = {"rows": rows, "games": len(pks), "bat_speed_share": share, "key": key,
+    summary = {"gaps": gaps, "rows": rows, "games": len(pks), "bat_speed_share": share, "key": key,
                "digest": _content_digest(slim) if rows else None,
                "first_day": per_day.get(start), "last_day": per_day.get(end),
                "scheduled": set(sched["game_pk"].astype(int))}
@@ -775,7 +809,9 @@ def main() -> int:
         if players["full_name"].isna().any():
             failures.append("players without a name")
 
-        tables = {"batter_season.csv": batters, "pitcher_season.csv": pitchers, "players.csv": players}
+        gaps = pd.DataFrame([g for y in YEARS for g in summaries[y]["gaps"]], columns=GAP_COLUMNS)
+        tables = {"batter_season.csv": batters, "pitcher_season.csv": pitchers, "players.csv": players,
+                  "tracking_gaps.csv": gaps}
         columns = {f"statcast_{y}.parquet": PITCH_COLUMNS for y in YEARS}
         columns.update({k: list(v.columns) for k, v in tables.items()})
         settings = json.loads(args.settings.read_text(encoding="utf-8"))
@@ -809,6 +845,7 @@ def main() -> int:
             per = t["game_year"].value_counts()
             desc = desc.replace("{rows:" + name + "}", " / ".join(f"{int(per.get(y, 0)):,}" for y in YEARS))
         desc = desc.replace("{rows:players}", f"{len(players):,}")
+        desc = desc.replace("{rows:tracking_gaps}", f"{len(gaps):,}")
         left = re.findall(r"\{rows:[a-z_0-9]+\}", desc)
         if left:
             print(f"description placeholders with no table: {left}")

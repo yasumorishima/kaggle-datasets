@@ -442,6 +442,19 @@
         "birth_date": "Birth date, YYYY-MM-DD.",
         "mlb_debut_date": "MLB debut date, YYYY-MM-DD."
       }
+    },
+    "tracking_gaps.csv": {
+      "description": "Games played more than 30 days before the build whose Statcast tracking columns are empty or thinly filled for the whole game (for example no bat tracking anywhere in the 2024 opening week, or a park's spin tracking down for a game). These gaps are permanent in Baseball Savant; the rows are in the season files with those columns empty. Neutral-site games without Hawk-Eye are not listed here.",
+      "columns": {
+        "season": "Season (2024-2026).",
+        "game_date": "Game date (YYYY-MM-DD).",
+        "game_pk": "MLB game id; joins to game_pk in the season files.",
+        "pitches": "Pitches in the game.",
+        "empty_columns": "Columns empty on every pitch of the game, separated by ';'.",
+        "partial_columns": "Columns filled on fewer pitches than the usual floor, as 'column share<floor', separated by ';'.",
+        "xwoba_share": "Share of batted balls with expected wOBA.",
+        "dre_share": "Share of pitches with delta_run_exp."
+      }
     }
   }
 }
