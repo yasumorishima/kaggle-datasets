@@ -1,0 +1,15 @@
+{
+  "id": "yasunorim/ohtani-2026-could-the-slump-be-seen-early",
+  "title": "Ohtani 2026: Could the Slump Be Seen Early?",
+  "code_file": "ohtani_2026_early_warning.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "false",
+  "enable_gpu": "false",
+  "enable_internet": "false",
+  "dataset_sources": [
+    "yasunorim/japan-mlb-pitchers-batters-statcast"
+  ],
+  "competition_sources": [],
+  "kernel_sources": []
+}
