@@ -13,6 +13,7 @@ Every regular-season Statcast pitch thrown or seen by Japanese MLB players, 2015
 - **DOI:** `10.34740/kaggle/dsv/10697439`
 - **Build:** generated in GitHub Actions by [`japanese-mlb-players-statcast/build.py`](japanese-mlb-players-statcast/build.py) (rebuilt September 2026: player list from MLB StatsAPI, regular season only, pitch counts equal StatsAPI's; the previous version had two wrong player ids and missing seasons)
 - **Article:** [Zenn](https://zenn.dev/yasumorishima/articles/kaggle-dataset-japanese-mlb-statcast)
+- **Notebook:** [Ohtani 2026: could the slump be seen early?](https://www.kaggle.com/code/yasunorim/ohtani-2026-could-the-slump-be-seen-early) (process signals against results, look-ahead free, [frozen rules](ohtani-2026-early-warning/FREEZE.md))
 
 ### 2. [MLB Bat Tracking (2024-2025)](https://www.kaggle.com/datasets/yasunorim/mlb-bat-tracking-2024-2025) 🥈
 
@@ -36,13 +37,14 @@ Every pitcher's pitch mix, velocity, spin, break, whiff rate and run value by se
 
 <img src="dataset3_pitcher_arsenal/pitch_mix_2020_2026.gif" width="550" alt="League pitch mix 2020-2026">
 
-### 4. [MLB Statcast + Bat Tracking (2024-2025)](https://www.kaggle.com/datasets/yasunorim/mlb-statcast-bat-tracking-2024-2025)
+### 4. [MLB Statcast + Bat Tracking (2024-2026)](https://www.kaggle.com/datasets/yasunorim/mlb-statcast-bat-tracking-2024-2025)
 
-Pitch-by-pitch Statcast data merged with Bat Tracking metrics.
+Every regular-season MLB pitch, 2024-2026, from Baseball Savant, with bat speed, swing length, attack angle and the rest of the bat tracking columns.
 
-- **Data:** ~1.4M rows, ~2.4 GB
-- **Metrics:** bat speed, swing length, swing path tilt, Statcast pitch-by-pitch data
-- **Notebook:** [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/yasumorishima/kaggle-datasets/blob/main/dataset4_statcast_bat_tracking/generate.ipynb)
+- **Data:** 2,141,219 pitches (711,899 / 712,528 / 716,792), 115 columns, one Parquet file per season, plus batter and pitcher season tables, a player table and `tracking_gaps.csv`
+- **Build:** generated in GitHub Actions by [`dataset4_statcast_bat_tracking/build.py`](dataset4_statcast_bat_tracking/build.py). Nothing is published unless every gate passes: each day's pitches other than automatic balls/strikes equal Savant's own count (checked on all 553 days), each game's columns are either fully empty or above a measured fill floor, and games played at neutral sites without Hawk-Eye are listed one by one.
+- **Tracking gaps:** games more than 30 days old whose tracking columns Savant never filled (for example no bat tracking in the 2024 opening week) are listed in `tracking_gaps.csv` instead of being hidden
+- **Notebook:** [Ohtani 2026: the pattern across every MLB hitter](https://www.kaggle.com/code/yasunorim/ohtani-2026-pattern-across-every-mlb-hitter): a pre-registered test of whether a sharp bat-speed drop comes before the injured list ([pre-registration](ohtani-2026-early-warning/FREEZE_population.md); result: relative risk 1.30, 95% interval 0.58-2.29, not supported)
 
 ### 5. [Baseball Savant Leaderboards (2024-2026)](https://www.kaggle.com/datasets/yasunorim/baseball-savant-leaderboards-2024)
 
@@ -84,11 +86,15 @@ Internally: checkout `wbc-scouting` → run `generate.py` → clean `rosters.csv
 
 Required secrets: `KAGGLE_USERNAME`, `KAGGLE_KEY`
 
-### Other datasets (manual)
+### Other datasets (built in GitHub Actions)
 
-1. Run `generate.ipynb` in Google Colab to generate CSV
-2. Download CSV to local dataset folder
-3. `kaggle datasets create -p <folder>` (first time) or `kaggle datasets version -p <folder> -m "message"` (update)
+Actions → `Update Kaggle Dataset` → **Run workflow** with `dataset_dir`, `version_notes` and `dry_run`.
+
+1. Checks the title (6-50) and subtitle (20-80) lengths the Kaggle CLI enforces, before anything is built
+2. If the folder has a `build.sh`, it builds the files into `<folder>/_build` and stops with nothing written when a gate fails; otherwise the folder is uploaded as is
+3. `dry_run=true` builds and checks only; otherwise `kaggle datasets version` (or `create`)
+
+Column descriptions are not accepted through the API, so after a new version they are entered in the browser from each folder's `settings.json`.
 
 ## Related
 
