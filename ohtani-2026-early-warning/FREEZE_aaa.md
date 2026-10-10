@@ -217,3 +217,13 @@ roughly 0.035-0.045 at 50% power.
   differ by about 0.02 at random), so the check now asks the floors' mean to keep 80% of the trait's gain.
 
 ## AMENDMENTS
+
+1. 2026-10-11, before any label was joined. The first run of the frozen notebook (`c00feef`) stopped at the rehab
+   gate: one hitter-season (2024, 23 Triple-A pitches) lost all of its pitches to a window that started at an MLB
+   club's placement and closed at a parsed MLB activation three days after his last Triple-A game; his rehab was
+   recorded as "assigned to <Triple-A club>", not "sent ... on a rehab assignment". The gate is meant to catch
+   windows that never close. It now fails only when a hitter-season loses more than 50% of its pitches to windows
+   that only the season end closed (no return, option, release, outright or designation), without a
+   rehab-assignment transaction; the number of hitter-seasons losing more than 50% for any reason is printed. That
+   run printed only data gates, transaction counts and the rehab line, as in the code test; no feature was
+   computed and no placement was joined to a row.
