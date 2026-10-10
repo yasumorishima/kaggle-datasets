@@ -241,20 +241,31 @@ for b, g in starts.groupby("batter"):
         if y in season_last.index:
             stop = min(stop, np.datetime64(season_last[y] + pd.Timedelta(days=1)))
         later = en[en > s0]
+        closed = bool(len(later)) and later[0] < stop
         if len(later):
             stop = min(stop, later[0])
-        windows.append((b, s0, stop))
-windows = pd.DataFrame(windows, columns=["batter", "start", "stop"])
+        windows.append((b, s0, stop, closed))
+windows = pd.DataFrame(windows, columns=["batter", "start", "stop", "closed"])
 in_rehab = np.zeros(len(pitches), bool)
+in_open = np.zeros(len(pitches), bool)  # inside a window that only the season end closed
 pb, pdte = pitches.batter.to_numpy(), pitches.game_date.to_numpy()
 for b, g in windows.groupby("batter"):
     m = pb == b
-    for s0, s1 in zip(g.start, g.stop):
-        in_rehab[m] |= (pdte[m] >= np.datetime64(s0)) & (pdte[m] < np.datetime64(s1))
-rem = pd.DataFrame({"batter": pb, "season": pitches.season.to_numpy(), "rehab": in_rehab}).groupby(["batter", "season"]).rehab.agg(["mean", "sum"])
-lost = rem[(rem["mean"] > 0.5) & ~pd.Series([k in rehab_seasons for k in rem.index], index=rem.index)]
-print(f"rehab windows {len(windows):,}; Triple-A pitches removed {in_rehab.sum():,} ({in_rehab.mean():.2%}) "
-      f"in {int((rem['sum'] > 0).sum()):,} hitter-seasons; hitter-seasons losing >50% without a rehab assignment: {len(lost)}")
+    for s0, s1, cl in zip(g.start, g.stop, g.closed):
+        w_ = (pdte[m] >= np.datetime64(s0)) & (pdte[m] < np.datetime64(s1))
+        in_rehab[m] |= w_
+        if not cl:
+            in_open[m] |= w_
+rem = pd.DataFrame({"batter": pb, "season": pitches.season.to_numpy(), "rehab": in_rehab, "open": in_open}).groupby(["batter", "season"]).agg(
+    mean=("rehab", "mean"), sum=("rehab", "sum"), open_share=("open", "mean"))
+no_rehab_tx = ~pd.Series([k in rehab_seasons for k in rem.index], index=rem.index)
+# AMENDMENT 1: the gate catches windows that never closed (no return, option, release, outright or designation
+# before the season end); a window closed by a parsed return may cover a whole short rehab stint.
+lost = rem[(rem.open_share > 0.5) & no_rehab_tx]
+print(f"rehab windows {len(windows):,} ({int((~windows.closed).sum()):,} closed only by the season end); Triple-A pitches removed "
+      f"{in_rehab.sum():,} ({in_rehab.mean():.2%}) in {int((rem['sum'] > 0).sum()):,} hitter-seasons; hitter-seasons losing >50%: "
+      f"{int((rem['mean'] > 0.5).sum())} ({int(((rem['mean'] > 0.5) & no_rehab_tx).sum())} without a rehab-assignment transaction); "
+      f"losing >50% to windows closed only by the season end, without a rehab assignment: {len(lost)}")
 assert len(lost) == 0, lost.head(20)
 pitches = pitches[~in_rehab]
 
