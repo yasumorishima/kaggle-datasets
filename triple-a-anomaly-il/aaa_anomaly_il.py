@@ -781,12 +781,21 @@ def swap_d(df, rng):
                 rf = ix_r[np.isfinite(src[ix_r, c])]
                 if len(rf) == 0:
                     continue
-                j_, steps = perm[i_r], 0
-                dvals = src[keys[j_][1], c][np.isfinite(src[keys[j_][1], c])]
-                while len(dvals) == 0 and steps < n:  # this donor has none in the column: next along the cycle
-                    j_, steps = perm[j_], steps + 1
-                    if j_ != i_r:
-                        dvals = src[keys[j_][1], c][np.isfinite(src[keys[j_][1], c])]
+                # The donor perm[i_r] gives his values; if he has none in this column, the next hitter-season along
+                # his permutation cycle; if nobody in that cycle has any (AMENDMENT 2), the next in the order of the
+                # permutation array after the donor. The recipient himself is never a donor.
+                order = []
+                j_ = perm[i_r]
+                while j_ != i_r and j_ not in order:
+                    order.append(j_)
+                    j_ = perm[j_]
+                start = int(perm[i_r])
+                order += [(start + t) % n for t in range(1, n) if (start + t) % n != i_r]
+                dvals = np.array([])
+                for j_ in order:
+                    dvals = src[keys[j_][1], c][np.isfinite(src[keys[j_][1], c])]
+                    if len(dvals):
+                        break
                 if len(dvals) == 0:
                     empty += 1
                     continue
