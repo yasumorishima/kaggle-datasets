@@ -1,0 +1,13 @@
+{
+  "id": "yasunorim/triple-a-statcast-pitching-2023-2026-fetch",
+  "title": "Triple-A Statcast Pitching 2023-2026 Fetch",
+  "code_file": "aaa_pitching_fetch.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "true",
+  "enable_gpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [],
+  "competition_sources": [],
+  "kernel_sources": []
+}
