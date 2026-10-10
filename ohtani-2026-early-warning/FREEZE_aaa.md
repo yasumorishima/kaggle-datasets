@@ -227,3 +227,11 @@ roughly 0.035-0.045 at 50% power.
    rehab-assignment transaction; the number of hitter-seasons losing more than 50% for any reason is printed. That
    run printed only data gates, transaction counts and the rehab line, as in the code test; no feature was
    computed and no placement was joined to a row.
+2. 2026-10-11, **after** the primary numbers were printed. The run after AMENDMENT 1 (`4cd3801`) printed P1 and the
+   2026 AUC table (P1 AUC 0.4990, 0.833% / 99.167% bounds 0.4725 / 0.5255; M2 - B0 -0.0092 [-0.0419, +0.0214];
+   M3 - M2 +0.0074 [-0.0232, +0.0354]) and then stopped at the P3 swap's own check: a recipient whose donor's whole
+   permutation cycle had no value in one D column kept no value there. All three interval conditions already
+   fail, and a floor can only remove support, so the verdicts (all NOT SUPPORTED) do not depend on this fix. The
+   fallback now continues, when the cycle has no value, with the next hitter-seasons in the order of the
+   permutation array after the donor (never the recipient himself). Nothing else changes; the run is repeated only
+   to produce the floors and the items reported whatever the result.
