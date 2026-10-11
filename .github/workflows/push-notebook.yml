@@ -73,26 +73,34 @@ jobs:
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
         run: kaggle kernels push -p "${{ inputs.notebook_dir }}"
 
-      - name: Poll until complete (max 600 x 30s = 300min)
+      - name: Poll until complete (up to 320 minutes)
         if: ${{ inputs.kernel_id != '' }}
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
         run: |
           KERNEL_ID="${{ inputs.kernel_id }}"
-          for i in $(seq 1 600); do
-            RAW=$(kaggle kernels status "$KERNEL_ID" 2>&1) || true
-            STATUS=$(echo "$RAW" | sed 's/.*has status "\([^"]*\)".*/\1/')
-            echo "Attempt $i/600: $STATUS"
-            if echo "$STATUS" | grep -qiE "COMPLETE"; then
-              echo "Kernel completed successfully."
-              exit 0
-            fi
-            if echo "$STATUS" | grep -qiE "ERROR|CANCEL"; then
-              echo "Kernel failed with status: $STATUS"
-              exit 1
+          LIMIT=$((320 * 60))
+          STATUS="none read yet"
+          i=0
+          while [ "$SECONDS" -lt "$LIMIT" ]; do
+            i=$((i + 1))
+            RAW=$(timeout 60 kaggle kernels status "$KERNEL_ID" 2>&1) || true
+            if echo "$RAW" | grep -q 'has status "'; then
+              STATUS=$(echo "$RAW" | sed 's/.*has status "\([^"]*\)".*/\1/')
+              echo "Attempt $i ($((SECONDS / 60)) min): $STATUS"
+              if echo "$STATUS" | grep -qiE "COMPLETE"; then
+                echo "Kernel completed successfully."
+                exit 0
+              fi
+              if echo "$STATUS" | grep -qiE "ERROR|CANCEL"; then
+                echo "Kernel failed with status: $STATUS"
+                exit 1
+              fi
+            else
+              echo "Attempt $i ($((SECONDS / 60)) min): status call did not return a status, retrying: $(echo "$RAW" | tail -1)"
             fi
             sleep 30
           done
-          echo "Timed out after 300 min; the kernel is still running on Kaggle (last status: $STATUS)."
+          echo "Stopped waiting after $((SECONDS / 60)) min; last status read: $STATUS. The kernel may still be running on Kaggle."
           exit 1
