@@ -19,6 +19,7 @@ on:
 jobs:
   push:
     runs-on: ubuntu-latest
+    timeout-minutes: 355
 
     steps:
       - name: Checkout kaggle-datasets
@@ -72,17 +73,17 @@ jobs:
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
         run: kaggle kernels push -p "${{ inputs.notebook_dir }}"
 
-      - name: Poll until complete (max 60 x 30s = 30min)
+      - name: Poll until complete (max 600 x 30s = 300min)
         if: ${{ inputs.kernel_id != '' }}
         env:
           KAGGLE_USERNAME: ${{ secrets.KAGGLE_USERNAME }}
           KAGGLE_KEY: ${{ secrets.KAGGLE_KEY }}
         run: |
           KERNEL_ID="${{ inputs.kernel_id }}"
-          for i in $(seq 1 60); do
+          for i in $(seq 1 600); do
             RAW=$(kaggle kernels status "$KERNEL_ID" 2>&1) || true
             STATUS=$(echo "$RAW" | sed 's/.*has status "\([^"]*\)".*/\1/')
-            echo "Attempt $i/60: $STATUS"
+            echo "Attempt $i/600: $STATUS"
             if echo "$STATUS" | grep -qiE "COMPLETE"; then
               echo "Kernel completed successfully."
               exit 0
@@ -93,5 +94,5 @@ jobs:
             fi
             sleep 30
           done
-          echo "Timed out after 30 min."
+          echo "Timed out after 300 min; the kernel is still running on Kaggle (last status: $STATUS)."
           exit 1
