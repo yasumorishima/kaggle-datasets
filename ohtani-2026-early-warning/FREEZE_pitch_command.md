@@ -228,3 +228,25 @@ plate appearance.
 No comparison of a new parameter with any placement before this file is on main. No change after the run except a dated
 amendment that says whether it came before or after any result was printed. The earlier pitcher studies' verdicts are
 not revisited.
+
+## AMENDMENTS
+
+1. 2026-10-12, before any new parameter met a label. The first run of the frozen notebook (`d0253d1`, notebook md5
+   `af13e96ac1d3a6c8e4f7dc83bcd72ad8`, GitHub Actions run 38234970818) stopped while building the rows, in
+   `command_series`, with `TypeError: Cannot infer number of levels from empty list`. Kaggle runs pandas 2.3.3, which
+   cannot factorize an empty MultiIndex; that happens for every pitcher who threw no pitch of one of the fastball types.
+   The code test had run on pandas 3.0.6, which returns an empty result there. Before the stop the run printed the
+   library versions, the input md5s (all equal to the recorded ones), "39 replacements applied", the pitch and pitcher
+   counts, the rehab-window and removal counts of the frozen pipeline, the join gates (Triple-A location joined to 100%
+   of pitches with the same pitcher, batter side and date on 100%; zone agreement 95.15% / 95.51% / 95.53% / 95.43%
+   for 2023-2026), the fill tables ("parameters dropped: none" at both levels) and the frozen label counts. None of
+   these involves a new parameter and a label together; no row was built, so no parameter was compared with a label
+   and no AUC was computed.
+   The change: the two group keys are built by a helper `group_key` that returns an empty key for no pitches and
+   otherwise factorizes exactly as before; mutation c2 is rewritten to the new line. No definition, gate, window or
+   test changes. The notebook md5 becomes `c90d9f1caa7dcaf62b3eeb337de9f46e`; the md5 in the header and the "md5
+   above" of the code test refer to the notebook before this amendment.
+   The code test was repeated in a venv with Kaggle's library versions (numpy 2.1.3, pandas 2.3.3, scikit-learn 1.6.1;
+   Python 3.11 there, 3.13 on Kaggle): the first-run notebook reproduces the stop, the amended notebook exits 0, and
+   the six planted leaks rebuilt from it each stop at their intended gate, read from each log's assertion. Code tests
+   are run under Kaggle's library versions from now on.
