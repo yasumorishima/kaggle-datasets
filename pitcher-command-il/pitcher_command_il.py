@@ -81,6 +81,13 @@ def group_dev2(keys, vals):
     return out
 
 
+def group_key(*cols):
+    """Integer group id per pitch (empty for no pitches: pandas 2 cannot factorize an empty MultiIndex)."""
+    if len(cols[0]) == 0:
+        return np.zeros(0, dtype=np.int64)
+    return pd.factorize(pd.MultiIndex.from_arrays(list(cols)))[0]
+
+
 def command_series(g, pt, days):
     """Six command parameters (FREEZE_pitch_command.md). g is sorted by date, game, at-bat, pitch; a group is the
     pitches of one appearance (game_pk, game_date) to one batter side, and for other pitches also of one type."""
@@ -92,14 +99,14 @@ def command_series(g, pt, days):
     fb = {}
     for t in FB:
         m = pt == t
-        key = pd.factorize(pd.MultiIndex.from_arrays([gp[m], gd[m], st[m]]))[0]
+        key = group_key(gp[m], gd[m], st[m])
         hx, hz = group_dev2(key, sx[m][:, None]), group_dev2(key, sz[m][:, None])
         for sfx, w in zip(SFX, (LONG[0], SHORT[0])):
             fb[(t, "FB horizontal location scatter" + sfx)] = np.sqrt(wmean(gd[m], hx, w, days))
             fb[(t, "FB vertical location scatter" + sfx)] = np.sqrt(wmean(gd[m], hz, w, days))
     oth = {}
     sec = (pt != "") & ~np.isin(pt, FB + NOT_OFFSPEED)
-    key = pd.factorize(pd.MultiIndex.from_arrays([gp[sec], gd[sec], st[sec], pt[sec]]))[0]
+    key = group_key(gp[sec], gd[sec], st[sec], pt[sec])
     s2 = group_dev2(key, np.c_[sx[sec], sz[sec]])
     heart = np.where(g.zone.isna(), np.nan, g.zone.eq(5).astype(float))
     top, bot = g.sz_top.to_numpy(float), g.sz_bot.to_numpy(float)
