@@ -111,7 +111,13 @@ d4.COLUMN_FLOORS = {c: d4.COLUMN_FLOORS[c] for c in ("release_spin_rate", "spin_
 # - the 2024-2026 exception tables name games of other seasons;
 d4.GAME_FLOOR_EXCEPTIONS = {}
 d4.XWOBA_EXCEPTIONS = {}
-d4.NEUTRAL_GAPS = {}
+# - the two Field of Dreams games (a temporary park in Dyersville, Iowa, without pitch tracking): every tracking column
+#   and woba_denom are empty on every pitch (full build, GHA 38474797934). woba_denom is allowed empty there only;
+#   the tracking columns go to tracking_gaps.csv as in any untracked game. Each must be a neutral-site game of its
+#   season's schedule (checked in build_season).
+d4.NEUTRAL_GAPS = {632924: (frozenset({"woba_denom"}), None),   # 2021-08-12 White Sox - Yankees
+                   663023: (frozenset({"woba_denom"}), None)}   # 2022-08-11 Cubs - Reds
+FOD_SEASON = {632924: 2021, 663023: 2022}
 # - xwOBA and delta_run_exp are not in this dataset, so their per-game share floors are off.
 d4.GAME_FLOORS = {"xwoba_share": 0.0, "dre_share": 0.0}
 
@@ -152,6 +158,9 @@ def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Pat
     if not lo <= last_day <= hi:
         errors.append(f"last regular-season day with a Final game (StatsAPI) {last_day} not in [{lo}, {hi}]")
     neutral = set(sched.loc[sched["neutral"], "game_pk"].astype(int))
+    for pk, y in FOD_SEASON.items():
+        if y == year and pk not in neutral:
+            errors.append(f"NEUTRAL_GAPS game {pk} is not a neutral-site game of the {year} schedule")
     span0, span1 = min(start, first_day), max(end, last_day)
     days = [span0 + timedelta(n) for n in range((span1 - span0).days + 1)]
     if only_days is not None:
@@ -211,7 +220,7 @@ def build_season(year: int, stage: Path, only_days: set[date] | None, cache: Pat
             listed = set()
             for r in low.to_dict("records"):
                 parts = [x for x in r["partial_columns"] if not x.startswith("stale ")]
-                cols = list(r["empty_columns"]) + [x.split()[0] for x in parts]
+                cols = list(r["empty_columns"]) + [x.split()[0] for x in parts]  # NEUTRAL_GAPS columns are not in empty_columns
                 if r["share_low"] or any(c not in TRACKING for c in cols):
                     errors.append(f"{d}: game {r['game_pk']} ({r['pitches']} pitches): empty {r['empty_columns']}, "
                                   f"partial {parts}")
