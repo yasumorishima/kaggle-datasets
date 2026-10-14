@@ -14,7 +14,7 @@ os.environ["SMOKE_FAKE_LABELS"] = "1"  # random placements only
 #
 # Seven pre-registered pitcher studies ([FREEZE_pitch.md](https://github.com/yasumorishima/kaggle-datasets/blob/main/ohtani-2026-early-warning/FREEZE_pitch.md) and its successors) built every feature of a pitcher-day from pitches thrown **strictly before** that day. The row of a pitcher's last appearance before a placement therefore never contained that appearance, while arm placements follow the last appearance within one day 73% of the time. This study scores **the outing that just ended**: its primary-fastball velocity against the pitcher's own recent normal.
 #
-# - **Target**: the last MLB appearance before an arm placement effective 1 to 14 days later (the other rows before that placement are left out); negatives are rows with no placement within 14 days.
+# - **Target**: the last MLB appearance before an arm placement effective 1 to 14 days later (the other rows before that placement are left out, and so is a positive that a StatsAPI game log shows was not his last appearance); negatives are rows with no placement within 14 days.
 # - **P1**: on outings without an early hook (left mid-at-bat, or a mid-inning exit 15 or more pitches short of his usual count), the AUC of the daily within-role rank of the velocity drop A. SUPPORTED if the bootstrap lower bound (0.625%) is above 0.5 **and** the rotation p-value (1,000 rotations from each pitcher-season's whole cyclic group) is at most 0.0125, and the same holds for A minus its mean by role and decile of the pitcher's appearances so far this season.
 # - **P2**: MLB 2026, the model with A over a rival that also holds what anyone watching saw (start, pitch count, batters faced, pitches in the last inning, runs, mid-inning exit, left mid-at-bat, pitch-count shortfall).
 #
@@ -410,6 +410,20 @@ def unseen_appearances(r, level, name):
           f"{unseen:,} ({unseen / max(tot, 1):.2%}), of which logging 0 pitches {zero:,}")
 
 
+def drop_contradicted(r, days, name):
+    """Leave out positives with a StatsAPI game-log appearance at the row's level after the positive's day and on or
+    before its placement (their last outing has no Statcast row). Returns the share left out."""
+    p = r[r.y_last.eq(1.0)]
+    bad = np.array([(((v := days.get(b, EMPTY)) > d) & (v <= d + np.timedelta64(int(k), "D"))).any()
+                    for b, d, k in zip(p.pitcher, p.day.to_numpy(), p.days_to_il)], dtype=bool)
+    share = bad.mean() if len(bad) else 0.0
+    r.loc[p.index[bad], "y_last"] = np.nan
+    print(f"{name}: positives with a StatsAPI game-log appearance at this level before their placement (their last "
+          f"outing has no Statcast row) {int(bad.sum()):,} of {len(bad):,} ({share:.2%}): left out; positives kept "
+          f"{int(r.y_last.eq(1.0).sum()):,}")
+    return share
+
+
 unseen_appearances(rows_m, "mlb", "MLB")
 unseen_appearances(rows_a, "aaa", "Triple-A")
 rows_m["y_last"] = last_outing_target(rows_m, "MLB")
@@ -422,15 +436,19 @@ for _nm, _r in (("MLB", rows_m), ("Triple-A", rows_a)):
     assert not any(m.any() for m in _later), f"{_nm}: a positive is not the last appearance before its placement"
     assert not np.isfinite(_r.A[_r.double.eq(True)]).any(), f"{_nm}: A defined on a doubleheader day"
     _lv = "mlb" if _nm == "MLB" else "aaa"
-    _gl = [((v := app_days[_lv].get(b, EMPTY)) > d) & (v <= d + np.timedelta64(int(k), "D"))
-           for b, d, k in zip(_p.pitcher, _p.day.to_numpy(), _p.days_to_il)]
-    _bad = np.array([m.any() for m in _gl], dtype=bool)
-    _share = _bad.mean() if len(_bad) else 0.0
-    print(f"{_nm}: positives with a StatsAPI game-log appearance at this level before their placement (their last outing "
-          f"has no Statcast row) {int(_bad.sum()):,} of {len(_bad):,} ({_share:.2%}): left out")
-    _r.loc[_p.index[_bad], "y_last"] = np.nan
+    _share = drop_contradicted(_r, app_days[_lv], _nm)
     if _lv == "mlb":
         assert _share <= 0.10, f"{_nm}: the game logs contradict more than 10% of positives"
+if FAKE:  # the rule must act: a game-log day planted the day after one positive leaves exactly that positive out
+    _t = rows_m.copy()
+    _i = _t.index[_t.y_last.eq(1.0)][0]
+    _pl = dict(app_days["mlb"])
+    _b = _t.pitcher[_i]
+    _pl[_b] = np.sort(np.r_[_pl.get(_b, EMPTY), np.array([np.datetime64(_t.day[_i], "ns") + np.timedelta64(1, "D")])])
+    _n0 = int(_t.y_last.eq(1.0).sum())
+    drop_contradicted(_t, _pl, "planted game-log day")
+    assert np.isnan(_t.y_last[_i]) and int(_t.y_last.eq(1.0).sum()) == _n0 - 1, \
+        "the game-log rule does not leave a contradicted positive out"
 
 
 def position_adjusted(r, col):
