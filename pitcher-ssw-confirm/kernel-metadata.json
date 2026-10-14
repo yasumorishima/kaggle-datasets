@@ -1,0 +1,18 @@
+{
+  "id": "yasunorim/pitcher-spin-axis-gap-confirmation-2021-2023",
+  "title": "Pitcher Spin-Axis Gap Confirmation 2021-2023",
+  "code_file": "pitcher_ssw_confirm.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "true",
+  "enable_gpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "yasunorim/mlb-statcast-bat-tracking-2024-2025",
+    "yasunorim/mlb-statcast-2021-2023-pitch-subset"
+  ],
+  "competition_sources": [],
+  "kernel_sources": [
+    "yasunorim/triple-a-statcast-pitching-2023-2026-fetch"
+  ]
+}
