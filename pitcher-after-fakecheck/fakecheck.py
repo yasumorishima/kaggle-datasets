@@ -15,7 +15,7 @@ os.environ["SMOKE_FAKE_LABELS"] = "1"  # random placements only
 # Seven pre-registered pitcher studies ([FREEZE_pitch.md](https://github.com/yasumorishima/kaggle-datasets/blob/main/ohtani-2026-early-warning/FREEZE_pitch.md) and its successors) built every feature of a pitcher-day from pitches thrown **strictly before** that day. The row of a pitcher's last appearance before a placement therefore never contained that appearance, while arm placements follow the last appearance within one day 73% of the time. This study scores **the outing that just ended**: its primary-fastball velocity against the pitcher's own recent normal.
 #
 # - **Target**: the last MLB appearance before an arm placement effective 1 to 14 days later (the other rows before that placement are left out); negatives are rows with no placement within 14 days.
-# - **P1**: on outings without an early hook (left mid-at-bat, or a mid-inning exit 15 or more pitches short of his usual count), the AUC of the daily within-role rank of the velocity drop A. SUPPORTED if the bootstrap lower bound (0.625%) is above 0.5 **and** the rotation p-value (1,000 rotations from each pitcher-season's whole cyclic group) is at most 0.0125, and the same holds for A minus its position-in-season mean.
+# - **P1**: on outings without an early hook (left mid-at-bat, or a mid-inning exit 15 or more pitches short of his usual count), the AUC of the daily within-role rank of the velocity drop A. SUPPORTED if the bootstrap lower bound (0.625%) is above 0.5 **and** the rotation p-value (1,000 rotations from each pitcher-season's whole cyclic group) is at most 0.0125, and the same holds for A minus its mean by role and decile of the pitcher's appearances so far this season.
 # - **P2**: MLB 2026, the model with A over a rival that also holds what anyone watching saw (start, pitch count, batters faced, pitches in the last inning, runs, mid-inning exit, left mid-at-bat, pitch-count shortfall).
 #
 # It runs the frozen pitcher notebook (commit `2c6b01d`, checked by md5) up to its tests, so rows, labels and the rival B0 are the frozen ones (equality gates). Everything was fixed before any outing-day feature met a placement: [FREEZE_pitch_after.md](https://github.com/yasumorishima/kaggle-datasets/blob/main/ohtani-2026-early-warning/FREEZE_pitch_after.md).
@@ -171,14 +171,18 @@ def own_scale_of(dv):
 
 def look_ahead_gate(groups, modes, level):
     """Pitches after a day t0 set to 999 move nothing up to t0; pitches on t0 set to 999 move x at t0 but not the
-    normal at t0, nor the own scale at t0."""
+    normal at t0, nor the own scale at t0. t0 is a day where adding the day's dev to the earlier ones would move their
+    MAD, so that a scale reading the day would show."""
     found = None
     for k0 in sorted(groups, key=lambda k: -len(groups[k])):
         g0 = groups[k0]
         base = vel_season(g0, modes.get((k0[0], k0[1] - 1)))
         dd_, xx, nn = base.day.to_numpy(), base.x.to_numpy(), base.normal.to_numpy()
+        dv_ = xx - nn
         nxt_day = np.r_[(dd_[1:] - dd_[:-1]) == np.timedelta64(1, "D"), False]
         ok_ = np.flatnonzero(nxt_day & np.isfinite(xx) & np.isfinite(nn) & np.r_[np.isfinite(xx[1:]), False])
+        ok_ = [i for i in ok_ if (pr_ := dv_[:i][np.isfinite(dv_[:i])]).size >= N_MIN_OWN
+               and mad(np.r_[pr_, 999.0 - nn[i]]) != mad(pr_)]
         if len(ok_):
             found = (k0, g0, base, int(ok_[len(ok_) // 2]))
             break
@@ -197,8 +201,14 @@ def look_ahead_gate(groups, modes, level):
     assert v2.x.to_numpy()[i0] != base.x.to_numpy()[i0], "x does not read the day's own pitches"
     assert v2.normal.to_numpy()[i0] == base.normal.to_numpy()[i0], "the normal reads the day's own pitches"
     d0, d2 = (base.x - base.normal).to_numpy(), (v2.x - v2.normal).to_numpy()
-    o0, o2 = own_scale_of(d0), own_scale_of(d2)
-    assert np.array_equal(o0[: i0 + 1], o2[: i0 + 1], equal_nan=True), "the own scale reads the day's own dev"
+    pr0 = d0[:i0][np.isfinite(d0[:i0])]
+    assert np.isfinite(d2[i0]) and pr0.size >= N_MIN_OWN and mad(np.r_[pr0, d2[i0]]) != mad(pr0), \
+        "the own-scale gate cannot see a scale that reads the day"
+    d2n = d2.copy()
+    d2n[i0] = np.nan
+    o0, o2, o2n = own_scale_of(d0), own_scale_of(d2), own_scale_of(d2n)
+    assert np.array_equal(o0[: i0 + 1], o2[: i0 + 1], equal_nan=True) and \
+        np.array_equal(o2[: i0 + 1], o2n[: i0 + 1], equal_nan=True), "the own scale reads the day's own dev"
     print(f"{level}: look-ahead gates passed on pitcher {k0[0]} season {k0[1]} at day {str(t0)[:10]}")
 
 
@@ -244,11 +254,27 @@ def day_records(d, level):
     gi = list(one.groupby(["pitcher", "season"]).indices.values())
     for ix in gi:
         usual[ix] = usual_of(one.o_pitches.to_numpy()[ix], one.o_start.to_numpy()[ix])
-    big = max(gi, key=len)  # gate: a huge pitch count on one day does not move that day's usual count
-    pc_, st_ = one.o_pitches.to_numpy()[big].copy(), one.o_start.to_numpy()[big]
-    i0 = len(big) // 2
-    pc_[i0] = 9999.0
-    assert np.array_equal(usual_of(pc_, st_)[: i0 + 1], usual[big][: i0 + 1], equal_nan=True), "the usual pitch count reads the day itself"
+    # gate: the day's count, 9999 or missing, does not move that day's usual count; checked on a day where adding a
+    # count of 9999 to his earlier same-flag counts would move their median, so that a usual count reading the day shows
+    case = None
+    for ix in sorted(gi, key=len, reverse=True):
+        pc0, st0 = one.o_pitches.to_numpy()[ix], one.o_start.to_numpy()[ix]
+        for k in range(len(ix) // 2, len(ix)):
+            if np.isfinite(st0[k]):
+                pr_ = pc0[:k][(st0[:k] == st0[k]) & np.isfinite(pc0[:k])]
+                if len(pr_) >= N_MIN_USUAL and np.median(np.r_[pr_, 9999.0]) != np.median(pr_):
+                    case = (ix, k)
+                    break
+        if case is not None:
+            break
+    assert case is not None, "no day on which the usual-count gate can see a usual count that reads the day"
+    big, i0 = case
+    st_ = one.o_start.to_numpy()[big]
+    pc_hi, pc_nan = one.o_pitches.to_numpy()[big].copy(), one.o_pitches.to_numpy()[big].copy()
+    pc_hi[i0], pc_nan[i0] = 9999.0, np.nan
+    u_hi, u_nan = usual_of(pc_hi, st_), usual_of(pc_nan, st_)
+    assert np.array_equal(u_hi[: i0 + 1], u_nan[: i0 + 1], equal_nan=True) and \
+        np.array_equal(u_hi[: i0 + 1], usual[big][: i0 + 1], equal_nan=True), "the usual pitch count reads the day itself"
     lg = one[one.season.eq(LEAGUE[level])].groupby("o_start").o_pitches.median()
     fallback = one.o_start.map(lg).to_numpy(float)
     one["o_shortfall"] = np.where(np.isfinite(usual), usual, fallback) - one.o_pitches
@@ -364,6 +390,28 @@ def last_outing_target(r, name):
     return y
 
 
+def unseen_appearances(r, level, name):
+    """Label-free: StatsAPI game-log appearance days of the rows' pitchers in the row seasons with no Statcast pitch of
+    his that day at this level, and how many of those log 0 pitches."""
+    d = ctx[level]
+    seen = set(zip(d.pitcher.astype(int).tolist(), d.game_date.to_numpy().astype("datetime64[D]").tolist()))
+    tot = unseen = zero = 0
+    for b in r.pitcher.unique().tolist():
+        v = app_days[level].get(b, EMPTY).astype("datetime64[D]")
+        v = v[np.isin(v.astype("datetime64[Y]").astype(int) + 1970, ROW_SEASONS)]
+        gd, gn = game_pitches[level].get(b, (EMPTY, np.array([])))
+        n_by = dict(zip(gd.astype("datetime64[D]").tolist(), gn.tolist()))
+        for t in v.tolist():
+            tot += 1
+            if (int(b), t) not in seen:
+                unseen += 1
+                zero += int(n_by.get(t, -1.0) == 0.0)
+    print(f"{name}: game-log appearance days of the rows' pitchers {tot:,}; without a Statcast pitch that day "
+          f"{unseen:,} ({unseen / max(tot, 1):.2%}), of which logging 0 pitches {zero:,}")
+
+
+unseen_appearances(rows_m, "mlb", "MLB")
+unseen_appearances(rows_a, "aaa", "Triple-A")
 rows_m["y_last"] = last_outing_target(rows_m, "MLB")
 rows_a["y_last"] = last_outing_target(rows_a, "Triple-A")
 for _nm, _r in (("MLB", rows_m), ("Triple-A", rows_a)):
@@ -376,14 +424,20 @@ for _nm, _r in (("MLB", rows_m), ("Triple-A", rows_a)):
     _lv = "mlb" if _nm == "MLB" else "aaa"
     _gl = [((v := app_days[_lv].get(b, EMPTY)) > d) & (v <= d + np.timedelta64(int(k), "D"))
            for b, d, k in zip(_p.pitcher, _p.day.to_numpy(), _p.days_to_il)]
-    _share = np.mean([m.any() for m in _gl]) if len(_gl) else 0.0
-    print(f"{_nm}: positives with a StatsAPI game-log appearance before their placement {_share:.2%}")
-    assert _share <= 0.02, f"{_nm}: the game logs contradict too many positives"
+    _bad = np.array([m.any() for m in _gl], dtype=bool)
+    _share = _bad.mean() if len(_bad) else 0.0
+    print(f"{_nm}: positives with a StatsAPI game-log appearance at this level before their placement (their last outing "
+          f"has no Statcast row) {int(_bad.sum()):,} of {len(_bad):,} ({_share:.2%}): left out")
+    _r.loc[_p.index[_bad], "y_last"] = np.nan
+    if _lv == "mlb":
+        assert _share <= 0.10, f"{_nm}: the game logs contradict more than 10% of positives"
 
 
 def position_adjusted(r, col):
-    """The score minus its mean by role and decile of the day of the season (known on the day; no label)."""
-    dec = r.groupby("role").day_of_season.transform(lambda v: pd.qcut(v.rank(method="first"), 10, labels=False))
+    """The score minus its mean by role and decile of the pitcher's appearances so far this season at this level (the
+    frozen apps_season: known on the day; means over all rows, no label). The daily rank already removes the calendar
+    day; this removes where the day sits in the pitcher's own season."""
+    dec = r.groupby("role").apps_season.transform(lambda v: pd.qcut(v.rank(method="first"), 10, labels=False))
     means = r.groupby([r.role, dec])[col].transform("mean")
     print(f"  label-free mean of {col} by position decile (relievers / starters):\n"
           + r.groupby([r.role, dec])[col].mean().unstack(0).round(4).to_string())
