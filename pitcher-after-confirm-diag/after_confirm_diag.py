@@ -22,7 +22,7 @@ import pandas as pd
 import requests
 from scipy.stats import rankdata
 
-CONF_URL = "https://raw.githubusercontent.com/yasumorishima/kaggle-datasets/824d9f6b695580a4054d0c98688a6ab65a55a132/pitcher-after-confirm/pitcher_after_confirm.py"
+CONF_URL = "https://raw.githubusercontent.com/yasumorishima/kaggle-datasets/e7a62ccb6c0341ad9907b6e0bae035acb91e951a/pitcher-after-confirm/pitcher_after_confirm.py"
 CONF_MD5 = "0b79718aeaf4638a4ca9b4da80489ac6"
 src = requests.get(CONF_URL, timeout=60).text if CONF_URL.startswith("http") else open(CONF_URL).read()
 assert hashlib.md5(src.encode()).hexdigest() == CONF_MD5, "not the confirmation notebook under test"
