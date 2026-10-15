@@ -246,90 +246,226 @@ def make(mode):
 # %%
 
 
-GAP_CLASSES = ["<=7", "8-15", "16-30", "31-60", ">60", "none-early", "none-late"]
+GAP_CLASSES = ["8-15", "16-30", "31-60", ">60", "none"]
 
 
-def position_frame(rows, season_end):
-    """Label-free position of every MLB row: fifth of the pitcher-season by row order, days to his next MLB row, and
-    whether a last row of the season is within the last 14 days of the regular season (season_end: last MLB date)."""
+def pool_frame(rows, season_first, season_last):
+    """Label-free position of every MLB row (PLAN v7.1): days to his next MLB row (over all of his MLB rows), the gap
+    class (-1 = within 7 days, not in the pool; 0-4 = GAP_CLASSES), the calendar fifth of the regular season and the
+    frozen role (the pre-day start share)."""
     r = rows.sort_values(["pitcher", "season", "day"], kind="stable")
-    g = r.groupby(["pitcher", "season"])
-    q = g.cumcount() / g.day.transform("size")
-    gap = (g.day.shift(-1) - r.day).dt.days
-    end = pd.to_datetime(r.season.map(season_end))
-    assert end.notna().all(), "a season without its last MLB date"
-    late = (end - r.day).dt.days <= 13
-    cls = np.select([gap <= 7, gap <= 15, gap <= 30, gap <= 60, gap.notna()], [0, 1, 2, 3, 4], np.where(late, 6, 5))
-    fifth = np.minimum((q * 5).astype(int), 4).to_numpy()
-    out = pd.DataFrame({"q": q.to_numpy(), "gap": gap.to_numpy(), "late": late.to_numpy(), "fifth": fifth, "cls": cls,
-                        "key": fifth * 7 + cls}, index=r.index)
+    gap = (r.groupby(["pitcher", "season"]).day.shift(-1) - r.day).dt.days
+    first = pd.to_datetime(r.season.map(season_first))
+    last = pd.to_datetime(r.season.map(season_last))
+    assert first.notna().all() and last.notna().all(), "a season without its first or last MLB date"
+    frac = (r.day - first).dt.days / ((last - first).dt.days + 1)
+    assert ((frac >= 0) & (frac < 1)).all(), "a row outside its regular season"
+    fifth = np.minimum((frac * 5).astype(int), 4)
+    cls = np.select([gap <= 7, gap <= 15, gap <= 30, gap <= 60, gap.notna()], [-1, 0, 1, 2, 3], 4)
+    assert r.role.isin([0.0, 1.0]).all(), "a row without a role"
+    out = pd.DataFrame({"gap": gap.to_numpy(), "frac": frac.to_numpy(), "fifth": fifth.to_numpy(), "cls": cls,
+                        "role": r.role.to_numpy()}, index=r.index)
     return out.loc[rows.index]
 
 
-def merge_bins(key, y):
-    """PLAN v5: while a bin with k positives has fewer than 4k rows, the smallest such bin joins the next shorter gap
-    class of its fifth; a <=7 bin joins the <=7 bin of the previous fifth (the next for the first fifth)."""
-    key = np.asarray(key).copy()
+def pool_base(rows_m, P):
+    """The pool's row filter: the positives' filter (use14 = ok14 and no other-level outing within 14 days), no early
+    hook, both scores finite, next MLB row 8 or more days later or none."""
+    return (rows_m.use14 & rows_m.early_hook.eq(0.0) & np.isfinite(rows_m.A_rank) & np.isfinite(rows_m.A_rank_pos)
+            & P.cls.ge(0)).to_numpy()
+
+
+def placed_within(rows_m, il_by, which):
+    """True where any placement of the kind (which: "arm" or "notext") is effective 0-14 days after the row."""
+    out = np.zeros(len(rows_m), bool)
+    days = rows_m.day.to_numpy()
+    for b, ix in rows_m.groupby("pitcher").indices.items():
+        eff, arm, txt = il_by.get(b, (np.array([], "datetime64[ns]"), np.array([], bool), np.array([], bool)))
+        m = arm if which == "arm" else ~np.asarray(txt, bool)
+        e = np.sort(np.asarray(eff)[np.asarray(m, bool)])
+        if len(e) == 0:
+            continue
+        d = days[ix]
+        lo = np.searchsorted(e, d, side="left")
+        hi = np.searchsorted(e, d + np.timedelta64(14, "D"), side="right")
+        out[ix] = hi > lo
+    return out
+
+
+def pool_labels(rows_m, P, il_by):
+    """PLAN v7.1 item 1: 1 = a frozen P1 positive in the pool; 0 = every other pool row (non-arm placements, no
+    placement, demotions); NaN = outside the pool, or a row with an arm placement 0-14 days later that is not a
+    positive, or a row before a placement without injury text within 14 days."""
+    base = pool_base(rows_m, P)
+    y = np.where(base, 0.0, np.nan)
+    y[(rows_m.il14 & (rows_m.next_arm | ~rows_m.next_text)).to_numpy()] = np.nan
+    y[placed_within(rows_m, il_by, "arm") | placed_within(rows_m, il_by, "notext")] = np.nan
+    pos = rows_m.y_last.eq(1.0).to_numpy()
+    y[pos & base] = 1.0
+    hooked = pos & rows_m.early_hook.ne(0.0).to_numpy()
+    near = pos & ~hooked & ~base & P.cls.eq(-1).to_numpy()
+    return y, int(near.sum())
+
+
+def violates_4x(n, k):
+    return k > 0 and n < 4 * k
+
+
+def violates_both(n, k):  # PLAN v7.2, the arm vs non-arm secondary: a stratum with arm rows needs a non-arm row
+    return k > 0 and n - k < 1
+
+
+def merge_strata(role, cls, fifth, y, rule=violates_4x):
+    """PLAN v7.1 item 2, counts only: while a stratum with k positives has fewer than 4k rows (positives included), the
+    smallest violating (role, class, first fifth) merges with the adjacent fifth group of its role and class (the next
+    one; the previous one if it is the last); a class that is one group joins the next shorter class of its role that
+    holds rows (the next longer if none is shorter; 8-15 joins 16-30); never across roles; a role with one stratum stops."""
+    role, cls, fifth = np.asarray(role, float), np.asarray(cls, int), np.asarray(fifth, int)
+    y = np.asarray(y, bool)
+    gid = (role * 100 + cls * 10 + fifth).astype(int)
+    g_cls = {g: int(c) for g, c in zip(gid, cls)}
+    g_f0 = {g: int(f) for g, f in zip(gid, fifth)}
+    g_role = {g: float(r) for g, r in zip(gid, role)}
     while True:
-        u = np.unique(key)
-        if len(u) == 1:
-            return key
-        bad = [k for k in u if y[key == k].sum() > 0 and (key == k).sum() < 4 * y[key == k].sum()]
+        u = np.unique(gid)
+        n = {g: int((gid == g).sum()) for g in u}
+        k = {g: int(y[gid == g].sum()) for g in u}
+        single = {r for r in set(g_role[g] for g in u) if sum(g_role[g] == r for g in u) == 1}
+        bad = [g for g in u if rule(n[g], k[g]) and g_role[g] not in single]
         if not bad:
-            return key
-        k = min(bad)
-        f, c = divmod(int(k), 7)
-        t = f * 7 + (5 if c == 6 else c - 1) if c > 0 else ((f - 1) * 7 if f > 0 else 7)
-        while t not in u:  # follow the same order through classes that hold no rows
-            f2, c2 = divmod(int(t), 7)
-            t = f2 * 7 + (5 if c2 == 6 else c2 - 1) if c2 > 0 else ((f2 - 1) * 7 if f2 > 0 else (f2 + 1) * 7)
-            assert 0 <= t < 35, "bin merge ran off the grid"
-        key[key == k] = t
+            return gid
+        g = min(bad, key=lambda x: (g_role[x], g_cls[x], g_f0[x]))
+        same = sorted([h for h in u if g_role[h] == g_role[g] and g_cls[h] == g_cls[g]], key=lambda x: g_f0[x])
+        if len(same) > 1:
+            i = same.index(g)
+            t = same[i + 1] if i + 1 < len(same) else same[i - 1]
+            keep = t if g_f0[t] < g_f0[g] else g
+            gone = g if keep == t else t
+            gid[gid == gone] = keep
+            continue
+        have = sorted({g_cls[h] for h in u if g_role[h] == g_role[g] and h != g})
+        c = g_cls[g]
+        shorter = [x for x in have if x < c]
+        tc = max(shorter) if shorter else min(x for x in have if x > c)
+        tg = [h for h in u if g_role[h] == g_role[g] and g_cls[h] == tc]
+        keep = min(tg, key=lambda x: g_f0[x])
+        for h in tg + [g]:
+            gid[gid == h] = keep
+        g_f0[keep] = min(g_f0[h] for h in tg + [g])
 
 
-def _check_position_rules():
-    """Label-free unit gate on the bin definition and the merge order (PLAN v5)."""
+def _check_pool_rules():
+    """Label-free unit gates on the gap classes, the calendar fifths and the merge order (PLAN v7.1)."""
     d0 = pd.Timestamp("2021-04-01")
-    gaps = [7, 8, 15, 16, 30, 31, 60, 61]  # one pitcher: rows at these gaps, then a last row
+    gaps = [7, 8, 15, 16, 30, 31, 60, 61]
     days = [d0]
     for g_ in gaps:
         days.append(days[-1] + pd.Timedelta(days=g_))
-    r = pd.DataFrame({"pitcher": 1, "season": 2021, "day": days})
-    r2 = pd.DataFrame({"pitcher": 2, "season": 2021, "day": [d0, pd.Timestamp("2021-12-18")]})  # last row 13 days before the end
-    r3 = pd.DataFrame({"pitcher": 3, "season": 2021, "day": [d0, pd.Timestamp("2021-12-17")]})  # last row 14 days before
-    rr = pd.concat([r, r2, r3], ignore_index=True)
-    pf = position_frame(rr, pd.Series({2021: pd.Timestamp("2021-12-31")}))
-    assert pf.cls.tolist() == [0, 1, 1, 2, 2, 3, 3, 4, 5, 4, 6, 4, 5], ("gap classes", pf.cls.tolist())
-    assert pf.fifth.tolist()[:9] == [0, 0, 1, 1, 2, 2, 3, 3, 4], ("fifths", pf.fifth.tolist())
-    k = np.array([4 * 7 + 6] * 2 + [4 * 7 + 5] * 20 + [7] * 3 + [0] * 30)
-    yk = np.array([1, 1] + [0] * 20 + [1, 0, 0] + [0] * 30, dtype=bool)
-    mk = merge_bins(k, yk)
-    assert (mk[:2] == 4 * 7 + 5).all() and (mk[22:25] == 0).all(), ("merge order", np.unique(mk))
+    rr = pd.DataFrame({"pitcher": 1, "season": 2021, "day": days, "role": 0.0})
+    pf = pool_frame(rr, pd.Series({2021: d0}), pd.Series({2021: pd.Timestamp("2021-12-31")}))
+    assert pf.cls.tolist() == [-1, 0, 0, 1, 1, 2, 2, 3, 4], ("gap classes", pf.cls.tolist())
+    # 275 days: day 0 -> fifth 0, day 55 -> fifth 1 (55 / 275 = 0.2), day 274 -> fifth 4
+    rf = pd.DataFrame({"pitcher": 2, "season": 2021, "day": [d0, d0 + pd.Timedelta(days=54), d0 + pd.Timedelta(days=55),
+                                                              d0 + pd.Timedelta(days=274)], "role": 1.0})
+    pf2 = pool_frame(rf, pd.Series({2021: d0}), pd.Series({2021: d0 + pd.Timedelta(days=274)}))
+    assert pf2.fifth.tolist() == [0, 0, 1, 4], ("calendar fifths", pf2.fifth.tolist())
+    # merge: role 0, class 0, fifths 0 and 1 (2 positives in 3 rows -> violates) merge first across fifths
+    role = np.array([0.0] * 3 + [0.0] * 10 + [1.0] * 2 + [1.0] * 20)
+    cls = np.array([0] * 3 + [0] * 10 + [4] * 2 + [3] * 20)
+    fif = np.array([0] * 3 + [1] * 10 + [2] * 2 + [2] * 20)
+    yy = np.array([1, 1, 0] + [0] * 10 + [1, 1] + [0] * 20, dtype=bool)
+    m = merge_strata(role, cls, fif, yy)
+    assert len(np.unique(m[:13])) == 1 and m[0] == 0, ("merge across fifths", np.unique(m[:13]))
+    assert len(np.unique(m[13:])) == 1 and m[13] != m[0], ("class merge within the role only", np.unique(m))
+    # the last fifth of a chain merges with the previous one
+    m3 = merge_strata(np.zeros(12), np.zeros(12, int), np.array([3] * 10 + [4] * 2), np.array([0] * 10 + [1, 1], bool))
+    assert len(np.unique(m3)) == 1 and m3[0] == 3, ("last fifth", np.unique(m3))
+    # two violators: the smallest (role, class, fifth) first; fifths 0 and 2 violate, 0 takes 1, then 2 takes 3
+    m4 = merge_strata(np.zeros(24), np.zeros(24, int), np.array([0] * 2 + [1] * 10 + [2] * 2 + [3] * 10),
+                      np.array([1, 1] + [0] * 10 + [1, 1] + [0] * 10, bool))
+    assert m4[0] == m4[2] == 0 and m4[12] == m4[14] == 2 and m4[0] != m4[12], ("two violators", np.unique(m4))
+    # the secondary rule merges only until a stratum with arm rows has a non-arm row
+    m5 = merge_strata(np.zeros(4), np.zeros(4, int), np.array([0, 1, 2, 2]), np.array([1, 0, 1, 0], bool), violates_both)
+    assert m5.tolist() == [0, 0, 2, 2], ("secondary rule", m5.tolist())
+    # a role with a single violating stratum is left as it is
+    m2 = merge_strata(np.zeros(3), np.zeros(3, int), np.zeros(3, int), np.array([1, 1, 0], bool))
+    assert len(np.unique(m2)) == 1, "a single-stratum role must stop"
 
 
-_check_position_rules()
+_check_pool_rules()
 
 
-def bin_draws(y, key, auc_fn, s, seeds):
-    """Exact stratified label permutation: in each merged bin, as many rows as real positives, uniformly without
-    replacement from all of the bin's rows (real positives included)."""
-    return np.array([auc_fn(yy, s) for yy in _draw_masks(y, key, seeds)])
+def _draw_masks(y, key, seeds):
+    groups = [(np.flatnonzero(key == k), int(y[key == k].sum())) for k in np.unique(key)]
+    for sd in seeds:
+        rng = np.random.default_rng(sd)
+        yy = np.zeros(len(y), dtype=bool)
+        for ix, k in groups:
+            if k:
+                yy[rng.choice(ix, k, replace=False)] = True
+        assert all(yy[ix].sum() == k for ix, k in groups), "a draw does not hold every stratum's positive count"
+        yield yy
+
+
+class Strat:
+    """Stratified AUC = sum over strata of k_s * AUC_s / K, with within-stratum average ranks computed once (they do not
+    depend on the labels)."""
+
+    def __init__(self, key, s):
+        self.code = pd.factorize(key)[0]
+        self.n = np.bincount(self.code)
+        self.wr = pd.Series(s).groupby(self.code).rank().to_numpy()
+
+    def auc(self, y):
+        k = np.bincount(self.code, weights=y.astype(float), minlength=len(self.n))
+        sr = np.bincount(self.code, weights=self.wr * y, minlength=len(self.n))
+        m = (k > 0) & (self.n - k > 0)
+        self.dropped = int(((k > 0) & ~m).sum())
+        if not m.any():  # no stratum holds both classes: not computable (the rule then fails, see pool_test)
+            return np.nan
+        return float(((sr[m] - k[m] * (k[m] + 1) / 2) / (self.n[m] - k[m])).sum() / k[m].sum())
+
+
+def pool_test(ns, score, y=None, n_draws=1000, seed0=7000, two_sided=False, rule=None):
+    """PLAN v7.1 items 2-3 on the pool: merged strata (printed table), stratified AUC, exact stratified permutation."""
+    rows_m = ns["rows_m"]
+    P = pool_frame(rows_m, ns["season_first"]["mlb"], ns["season_last"]["mlb"])
+    near = None
+    if y is None:
+        y, near = pool_labels(rows_m, P, ns["il_by"])
+    sel = np.isfinite(y) & np.isfinite(rows_m[score]).to_numpy()
+    yy = y[sel] == 1.0
+    Ps = P[sel]
+    rule = rule or violates_4x
+    key = merge_strata(Ps.role.to_numpy(), Ps.cls.to_numpy(), Ps.fifth.to_numpy(), yy, rule)
+    tab = pd.DataFrame({"stratum": key, "y": yy}).groupby("stratum").agg(rows=("y", "size"), positives=("y", "sum"))
+    single = set(Ps.role[pd.Series(key, index=Ps.index).groupby(Ps.role).transform("nunique").eq(1)].unique())
+    for k_, row in tab.iterrows():
+        assert not rule(row.rows, row.positives) or (k_ // 100) in single, "a stratum breaks the merge rule"
+    s = rows_m[score].to_numpy()[sel]
+    st = Strat(key, s)
+    a = st.auc(yy)
+    fl = np.array([st.auc(m) for m in _draw_masks(yy, key, range(seed0, seed0 + n_draws))])
+    if not np.isfinite(a):  # fail closed: a NaN statistic must not compare as beating every draw
+        p = np.nan
+    elif two_sided:
+        c = fl.mean()
+        p = (1 + int((np.abs(fl - c) >= abs(a - c)).sum())) / (n_draws + 1)
+    else:
+        p = (1 + int((fl >= a).sum())) / (n_draws + 1)
+    return {"auc": a, "floor": fl, "p": p, "table": tab, "pos": int(yy.sum()), "rows": int(sel.sum()), "key": key,
+            "dropped": st.dropped,
+            "index": rows_m.index[sel], "near_left_out": near, "y": yy}
 
 
 def p1_stat(ns, score):
+    """The frozen statistic and the frozen whole-group rotation floor on the frozen C2 rows, the frozen bootstrap draws."""
     rows_m, auc, rotated_group, floor_structure = ns["rows_m"], ns["auc"], ns["rotated_group"], ns["floor_structure"]
     np, N_BOOT = ns["np"], ns["N_BOOT"]
     no_hook = rows_m.early_hook.eq(0.0).to_numpy()
-    POS = position_frame(rows_m, ns["season_last"]["mlb"])
     sel = no_hook & rows_m.y_last.notna().to_numpy() & np.isfinite(rows_m[score]).to_numpy()
     df = rows_m[sel].reset_index(drop=True)
-    pos_df = POS[sel].reset_index(drop=True)
     y, s = df.y_last.to_numpy() == 1.0, df[score].to_numpy()
-    key = merge_bins(pos_df.key.to_numpy(), y)
-    for k in np.unique(key):
-        n_k, y_k = int((key == k).sum()), int(y[key == k].sum())
-        assert y_k == 0 or n_k >= 4 * y_k or len(np.unique(key)) == 1, "a merged bin breaks the 4x rule"
-    fl_bin = bin_draws(y, key, auc, s, range(7000, 8000))
     gix = list(df.groupby(["pitcher", "season"]).indices.values())
     a = auc(y, s)
     fl = np.array([auc(y, rotated_group(s, gix, sd)) for sd in range(7000, 8000)])
@@ -346,28 +482,35 @@ def p1_stat(ns, score):
         v.append(auc(y[idx], s[idx]))
     v = np.array(v)
     v = v[np.isfinite(v)]
-    p_bin = (1 + int((fl_bin >= a).sum())) / 1001
-    # reported: within-bin stratified Mann-Whitney (sum over bins of the positives' within-bin rank sums), same draws
-    wr = pd.Series(s).groupby(key).rank().to_numpy()  # within-bin ranks (do not depend on the labels)
-    t_real = wr[y].sum()
-    t_fl = np.array([wr[_d].sum() for _d in _draw_masks(y, key, range(7000, 7200))])
-    tab = pd.DataFrame({"bin": key, "y": y}).groupby("bin").agg(rows=("y", "size"), positives=("y", "sum"))
     return {"auc": a, "floor": fl, "p": p, "lo95": np.percentile(v, 2.5), "lo_bonf": np.percentile(v, ns["LO"]),
-            "floor_bin": fl_bin, "p_bin": p_bin, "p_strat": (1 + int((t_fl >= t_real).sum())) / 201, "bins": tab,
-            "pos": int(y.sum()), "rows": len(df), "pitchers": df.pitcher.nunique(), "df": df, "key": key,
-            "index": rows_m.index[sel]}
+            "pos": int(y.sum()), "rows": len(df), "pitchers": df.pitcher.nunique(), "df": df}
 
 
-def _draw_masks(y, key, seeds):
-    groups = [(np.flatnonzero(key == k), int(y[key == k].sum())) for k in np.unique(key)]
-    for sd in seeds:
-        rng = np.random.default_rng(sd)
-        yy = np.zeros(len(y), dtype=bool)
-        for ix, k in groups:
-            if k:
-                yy[rng.choice(ix, k, replace=False)] = True
-        assert all(yy[ix].sum() == k for ix, k in groups), "a draw does not hold every bin's positive count"
-        yield yy
+def covid_flag(rows_m, il_lab):
+    """True where the next placement within 14 days has COVID in its description (none in fake mode)."""
+    if "description" not in il_lab.columns:
+        return np.zeros(len(rows_m), bool)
+    cov = il_lab[il_lab.description.str.contains("covid", case=False, na=False)]
+    keys = set(zip(cov.pitcher, pd.to_datetime(cov.effective)))
+    pl = rows_m.day + pd.to_timedelta(rows_m.days_to_il.where(np.isfinite(rows_m.days_to_il), 0), unit="D")
+    return (rows_m.il14 & pd.Series([(b, d) in keys for b, d in zip(rows_m.pitcher, pl)], index=rows_m.index)).to_numpy()
+
+
+def arm_vs_nonarm_labels(rows_m, P, il_lab, il_by):
+    """PLAN v7.1 item 7: within the pool filter, 1 = a frozen P1 positive, 0 = the last row 1-14 days before a non-arm
+    placement with injury text, COVID-related placements left out; NaN otherwise."""
+    base = pool_base(rows_m, P)
+    cov = covid_flag(rows_m, il_lab)
+    r = rows_m[rows_m.il14 & ~rows_m.next_arm & rows_m.next_text].copy()
+    r["pl"] = r.day + pd.to_timedelta(r.days_to_il, unit="D")
+    last = r.sort_values("day").groupby(["pitcher", "pl"]).tail(1)
+    last = last[last.days_to_il.ge(1)].index  # as the frozen arm rule: the last row, then 1-14 days
+    y = np.full(len(rows_m), np.nan)
+    ilast = rows_m.index.get_indexer(last)
+    y[ilast] = 0.0
+    y[~base | cov | placed_within(rows_m, il_by, "arm") | placed_within(rows_m, il_by, "notext")] = np.nan
+    y[rows_m.y_last.eq(1.0).to_numpy() & base] = 1.0
+    return y, int((cov & rows_m.next_arm.eq(False).to_numpy()).sum())
 
 
 # %% [markdown]
@@ -386,10 +529,12 @@ print(f"regression P1: AUC {R1['auc']:.16f} (frozen {FROZEN['auc']}), Bonferroni
 _bd = R1["df"]
 _bt = ns["boot"](_bd, _bd.y_last.to_numpy() == 1.0, {"A": _bd.A_rank.to_numpy()}, [])
 assert _bt.loc["A", "lo95"] == R1["lo95"] and _bt.loc["A", "lo_bonf"] == R1["lo_bonf"], "the bootstrap is not the frozen one"
-print(f"reported (labels read before): the frozen P1 under the confirmation's position-matched floor: A_rank floor mean "
-      f"{R1['floor_bin'].mean():.4f}, 97.5th {np.percentile(R1['floor_bin'], 97.5):.4f}, p {R1['p_bin']:.4f}; A_rank_pos p "
-      f"{R1P['p_bin']:.4f}; stratified Mann-Whitney p {R1['p_strat']:.4f} / {R1P['p_strat']:.4f}")
-print(R1["bins"].T.to_string())
+R1Q, R1QP = pool_test(ns, "A_rank"), pool_test(ns, "A_rank_pos")
+print(f"reported (labels read before): the frozen P1 under the pool floor (PLAN v7.1): stratified AUC {R1Q['auc']:.4f} / "
+      f"{R1QP['auc']:.4f}, floor mean {R1Q['floor'].mean():.4f} / {R1QP['floor'].mean():.4f}, 97.5th "
+      f"{np.percentile(R1Q['floor'], 97.5):.4f} / {np.percentile(R1QP['floor'], 97.5):.4f}, p {R1Q['p']:.4f} / {R1QP['p']:.4f}; "
+      f"positives {R1Q['pos']} in {R1Q['rows']} pool rows (positives within 7 days of the next row, left out: {R1Q['near_left_out']})")
+print(R1Q["table"].T.to_string())
 print(f"regression: the 95% and Bonferroni bounds equal the frozen boot() ({R1['lo95']:.16f}, {R1['lo_bonf']:.16f})")
 LEAGUE_2025 = {"lsc": dict(SEEN["lsc"]), "lg": SEEN["lg"].copy()}
 print("league constants from MLB 2025 (passed to the confirmation):", LEAGUE_2025["lsc"], LEAGUE_2025["lg"].to_dict())
@@ -401,7 +546,7 @@ if not ns["FAKE"]:
         "the floor is not reproduced"
     print("regression gate passed")
 FAKE_RUN = ns["FAKE"]
-del ns, R1, R1P
+del ns, R1, R1P, R1Q, R1QP
 gc.collect()
 
 # %% [markdown]
@@ -417,51 +562,92 @@ assert ns["ROW_SEASONS"] == [2021, 2022, 2023] and ns["TEST"] == 2023, "the conf
 assert SEEN["lsc"] == LEAGUE_2025["lsc"] and SEEN["lg"].equals(LEAGUE_2025["lg"]), "the confirmation did not use the 2025 constants"
 C2 = p1_stat(ns, "A_rank")
 C2P = p1_stat(ns, "A_rank_pos")
-def decide(r):
-    return bool(r["p"] <= 0.025 and r["p_bin"] <= 0.025)
+Q2, Q2P = pool_test(ns, "A_rank"), pool_test(ns, "A_rank_pos")
 
 
-def verdict_of(r_main, r_pos):
-    return "SUPPORTED" if decide(r_main) and decide(r_pos) else "NOT SUPPORTED"
+def decide(r_rot, r_pool):
+    return bool(r_rot["p"] <= 0.025 and r_pool["p"] <= 0.025)
 
 
-assert decide({"p": 0.001, "p_bin": 0.001}) and decide({"p": 0.025, "p_bin": 0.025}), "the rule does not pass at its bound"
-assert not decide({"p": 0.001, "p_bin": 0.026}) and not decide({"p": 0.026, "p_bin": 0.001}), "the rule passes with one floor beaten"
-ok_main, ok_pos = decide(C2), decide(C2P)
-print("C2 rows and positives per merged position bin (key = fifth * 7 + gap class; classes " + ", ".join(GAP_CLASSES) + "):")
-print(C2["bins"].T.to_string())
-for nm, r_, ok in (("C2 MLB 2021-2023, last outing before an arm placement, no early hook [A_rank]", C2, ok_main),
-                   ("C2 position-adjusted [A_rank_pos]", C2P, ok_pos)):
+def verdict_of(main, pos):
+    return "SUPPORTED" if decide(*main) and decide(*pos) else "NOT SUPPORTED"
+
+
+assert decide({"p": 0.001}, {"p": 0.001}) and decide({"p": 0.025}, {"p": 0.025}), "the rule does not pass at its bound"
+assert not decide({"p": 0.001}, {"p": 0.026}) and not decide({"p": 0.026}, {"p": 0.001}), "the rule passes with one floor beaten"
+assert not decide({"p": 0.001}, {"p": np.nan}) and not decide({"p": np.nan}, {"p": 0.001}), "the rule passes a NaN p"
+ok_main, ok_pos = decide(C2, Q2), decide(C2P, Q2P)
+print("C2 pool rows and positives per merged stratum (stratum = role * 100 + gap class * 10 + first calendar fifth; "
+      "classes " + ", ".join(GAP_CLASSES) + f"); positives within 7 days of the next row, left out: {Q2['near_left_out']}")
+print(Q2["table"].T.to_string())
+for nm, r_, q_, ok in (("C2 MLB 2021-2023, last outing before an arm placement, no early hook [A_rank]", C2, Q2, ok_main),
+                       ("C2 position-adjusted [A_rank_pos]", C2P, Q2P, ok_pos)):
     print(f"{nm}: AUC {r_['auc']:.4f}; 95% lower {r_['lo95']:.4f} (Bonferroni 0.625% {r_['lo_bonf']:.4f}); whole-group "
           f"floor mean {r_['floor'].mean():.4f}, 97.5th {np.percentile(r_['floor'], 97.5):.4f}, max {r_['floor'].max():.4f}, "
-          f"p {r_['p']:.4f}; position-matched floor mean {r_['floor_bin'].mean():.4f}, 97.5th "
-          f"{np.percentile(r_['floor_bin'], 97.5):.4f}, p {r_['p_bin']:.4f} (reported: stratified Mann-Whitney p "
-          f"{r_['p_strat']:.4f}); positives {r_['pos']:,}, rows {r_['rows']:,}, pitchers {r_['pitchers']:,} -> "
-          f"{'passes' if ok else 'does not pass'}")
-verdict = verdict_of(C2, C2P)
+          f"p {r_['p']:.4f}; pool: stratified AUC {q_['auc']:.4f}, floor mean {q_['floor'].mean():.4f}, 97.5th "
+          f"{np.percentile(q_['floor'], 97.5):.4f}, p {q_['p']:.4f} (positives {q_['pos']:,} in {q_['rows']:,} pool rows); "
+          f"positives {r_['pos']:,}, rows {r_['rows']:,}, pitchers {r_['pitchers']:,} -> {'passes' if ok else 'does not pass'}")
+verdict = verdict_of((C2, Q2), (C2P, Q2P))
 print(f"{'FAKE LABELS (code test, not a result) ' if FAKE_RUN else ''}C2: {verdict} (both floors, both lines)")
-if FAKE_RUN:  # a pure position score (the merged bin) must sit exactly on the position-matched floor
+if FAKE_RUN:  # fake placements are random days the pitcher keeps pitching after, so few reach the pool: the gates below
+    # use 30 random pool rows as the pool's positives (the frozen fake labels stay on the rotation side)
+    _Pf = pool_frame(ns["rows_m"], ns["season_first"]["mlb"], ns["season_last"]["mlb"])
+    _yf, _ = pool_labels(ns["rows_m"], _Pf, ns["il_by"])
+    _yf[_yf == 1.0] = 0.0
+    _cand = np.flatnonzero(_yf == 0.0)
+    _yf[np.random.default_rng(5).choice(_cand, min(30, len(_cand) // 5), replace=False)] = 1.0
+    print(f"fake pool positives for the gates: {int((_yf == 1.0).sum())} of {len(_cand)} pool rows")
+    QF = pool_test(ns, "A_rank", y=_yf)
     _rm = ns["rows_m"]
     _rm["_kscore"] = np.nan
-    _rm.loc[C2["index"], "_kscore"] = C2["key"].astype(float)
-    _k = p1_stat(ns, "_kscore")
-    assert np.array_equal(_k["key"], C2["key"]) and _k["p_bin"] == 1.0, ("the position-matched floor does not hold position", _k["p_bin"])
-    print(f"position-only score: AUC {_k['auc']:.4f}, position-matched p {_k['p_bin']:.4f} (must be 1), rotation p {_k['p']:.4f}")
+    _rm.loc[QF["index"], "_kscore"] = QF["key"].astype(float)
+    _k = pool_test(ns, "_kscore", y=_yf)
+    assert np.array_equal(_k["key"], QF["key"]) and _k["p"] == 1.0, ("the pool floor does not hold position", _k["p"])
+    _ks = QF["key"].astype(float)
+    _pa = {round(ns["auc"](m_, _ks), 12) for m_ in _draw_masks(QF["y"], QF["key"], range(7000, 7100))}
+    assert _pa == {round(ns["auc"](QF["y"], _ks), 12)}, ("a draw moves positives across strata", len(_pa))
+    print(f"position-only score: stratified AUC {_k['auc']:.4f}, pool p {_k['p']:.4f} (must be 1); its plain AUC is the "
+          f"same in 100 draws")
     _rm.drop(columns="_kscore", inplace=True)
+    _yy, _kk = QF["y"], QF["key"]
+    _sv = ns["rows_m"].loc[QF["index"], "A_rank"].to_numpy()
+    _direct = sum(int(_yy[_kk == k_].sum()) * ns["auc"](_yy[_kk == k_], _sv[_kk == k_])
+                  for k_ in np.unique(_kk) if _yy[_kk == k_].sum() > 0) / _yy.sum()
+    assert abs(QF["auc"] - _direct) < 1e-12, ("the stratified AUC differs from the per-stratum AUCs", QF["auc"], _direct)
+    print(f"stratified AUC equals the weighted per-stratum AUCs ({_direct:.12f})")
 if FAKE_RUN:  # the verdict must be reachable by a planted signal, and only when both lines carry it
     _rm = ns["rows_m"]
+    _mark = _rm.y_last.eq(1.0).to_numpy() | (_yf == 1.0)
     for _sc in ("A_rank", "A_rank_pos"):
-        _rm[_sc + "_up"] = np.where(_rm.y_last.eq(1.0), _rm[_sc] + 0.3, _rm[_sc])
-        _rm[_sc + "_down"] = np.where(_rm.y_last.eq(1.0), _rm[_sc] - 0.3, _rm[_sc])
+        _rm[_sc + "_up"] = np.where(_mark, _rm[_sc] + 0.3, _rm[_sc])
+        _rm[_sc + "_down"] = np.where(_mark, _rm[_sc] - 0.3, _rm[_sc])
     _up, _upp = p1_stat(ns, "A_rank_up"), p1_stat(ns, "A_rank_pos_up")
     _dn, _dnp = p1_stat(ns, "A_rank_down"), p1_stat(ns, "A_rank_pos_down")
-    print(f"planted +0.3: AUC {_up['auc']:.4f} / {_upp['auc']:.4f}, p {_up['p']:.4f} / {_upp['p']:.4f}, lower {_up['lo95']:.4f} / "
-          f"{_upp['lo95']:.4f}, position-matched p {_up['p_bin']:.4f} / {_upp['p_bin']:.4f}; planted -0.3: AUC {_dn['auc']:.4f} / {_dnp['auc']:.4f}")
-    assert verdict_of(_up, _upp) == "SUPPORTED", "the verdict cannot be reached by a planted signal"
-    assert verdict_of(_up, _dnp) == "NOT SUPPORTED" and verdict_of(_dn, _upp) == "NOT SUPPORTED", \
+    _qu, _qup = pool_test(ns, "A_rank_up", y=_yf), pool_test(ns, "A_rank_pos_up", y=_yf)
+    _qd, _qdp = pool_test(ns, "A_rank_down", y=_yf), pool_test(ns, "A_rank_pos_down", y=_yf)
+    print(f"planted +0.3: AUC {_up['auc']:.4f} / {_upp['auc']:.4f}, p {_up['p']:.4f} / {_upp['p']:.4f}, pool AUC {_qu['auc']:.4f} / "
+          f"{_qup['auc']:.4f}, pool p {_qu['p']:.4f} / {_qup['p']:.4f}; planted -0.3: AUC {_dn['auc']:.4f} / {_dnp['auc']:.4f}, "
+          f"pool AUC {_qd['auc']:.4f} / {_qdp['auc']:.4f}")
+    assert verdict_of((_up, _qu), (_upp, _qup)) == "SUPPORTED", "the verdict cannot be reached by a planted signal"
+    assert verdict_of((_up, _qu), (_dnp, _qdp)) == "NOT SUPPORTED" and verdict_of((_dn, _qd), (_upp, _qup)) == "NOT SUPPORTED", \
         "the verdict passes with one line against it"
-    assert verdict_of(_dn, _dnp) == "NOT SUPPORTED", "the verdict passes a planted reverse signal"
+    assert verdict_of((_dn, _qd), (_dnp, _qdp)) == "NOT SUPPORTED", "the verdict passes a planted reverse signal"
     _rm.drop(columns=[c for c in _rm.columns if c.endswith(("_up", "_down"))], inplace=True)
+_P = pool_frame(ns["rows_m"], ns["season_first"]["mlb"], ns["season_last"]["mlb"])
+_ya, _ncov = arm_vs_nonarm_labels(ns["rows_m"], _P, ns["il_lab"], ns["il_by"])
+S2, S2P = pool_test(ns, "A_rank", y=_ya, rule=violates_both), pool_test(ns, "A_rank_pos", y=_ya, rule=violates_both)
+print(f"reported (secondary, arm vs non-arm last outings, COVID-related rows left out: {_ncov}): stratified AUC {S2['auc']:.4f} / "
+      f"{S2P['auc']:.4f}, floor mean {S2['floor'].mean():.4f} / {S2P['floor'].mean():.4f}, p {S2['p']:.4f} / {S2P['p']:.4f}; "
+      f"arm {S2['pos']}, non-arm {S2['rows'] - S2['pos']} -> "
+      f"{'arm-specific' if S2['p'] <= 0.025 and S2P['p'] <= 0.025 else 'not shown to be arm-specific'}")
+if FAKE_RUN:  # the secondary's path on computable labels: the 30 fake pool positives against all pool 0 rows, its own rule
+    _ys = np.where(_yf == 0.0, 0.0, np.nan)
+    _ys[_yf == 1.0] = 1.0
+    _sf = pool_test(ns, "A_rank", y=_ys, rule=violates_both)
+    assert np.isfinite(_sf["auc"]) and np.isfinite(_sf["p"]) and _sf["dropped"] == 0, ("the secondary path", _sf["auc"], _sf["dropped"])
+    print(f"secondary path on fake labels: stratified AUC {_sf['auc']:.4f}, p {_sf['p']:.4f}, strata {len(np.unique(_sf['key']))}")
+    _nan = pool_test(ns, "A_rank", y=np.where(np.isfinite(_ys), 1.0, np.nan), rule=violates_both)
+    assert np.isnan(_nan["auc"]) and np.isnan(_nan["p"]), "a statistic with no computable stratum must give p NaN"
 
 # %% [markdown]
 # ## Reported, not tested
@@ -486,8 +672,10 @@ print(f"reported: dev (mph) in the C2 rows: positives mean {pos.dev.mean():+.3f}
 
 summary = pd.DataFrame([{"test": "C2 MLB 2021-2023 last outing before an arm placement, no early hook, daily rank of A",
                          "value": C2["auc"], "lo95": C2["lo95"], "p_rotation": C2["p"], "position_adjusted": C2P["auc"],
-                         "position_adjusted_lo95": C2P["lo95"], "position_adjusted_p": C2P["p"], "p_position_matched": C2["p_bin"],
-                         "position_adjusted_p_position_matched": C2P["p_bin"], "positives": C2["pos"],
+                         "position_adjusted_lo95": C2P["lo95"], "position_adjusted_p": C2P["p"],
+                         "pool_stratified_auc": Q2["auc"], "p_pool": Q2["p"], "position_adjusted_pool_stratified_auc": Q2P["auc"],
+                         "position_adjusted_p_pool": Q2P["p"], "positives": C2["pos"], "pool_positives": Q2["pos"],
+                         "secondary_arm_vs_nonarm_auc": S2["auc"], "secondary_p": S2["p"], "secondary_p_pos": S2P["p"],
                          "verdict": verdict}])
 if FAKE_RUN:
     print("FAKE LABELS: code test only, no verdict written")
