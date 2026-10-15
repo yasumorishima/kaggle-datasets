@@ -1,0 +1,15 @@
+{
+  "id": "yasunorim/mlb-statcast-2021-2023-outing-columns",
+  "title": "MLB Statcast 2021-2023 With Outing Columns",
+  "subtitle": "Every regular-season MLB pitch 2021-2023, 26 Statcast columns",
+  "description": "# MLB Statcast 2021-2023 With Outing Columns\n\nEvery pitch of the **2021, 2022 and 2023 MLB regular seasons** from Baseball Savant (one request per day, regular-season games only), one row per pitch: the 23 columns of [MLB Statcast 2021-2023 Pitch Subset](https://www.kaggle.com/datasets/yasunorim/mlb-statcast-2021-2023-pitch-subset) plus `inning_topbot`, `bat_score` and `post_bat_score`, which a pre-registered pitcher study in [kaggle-datasets](https://github.com/yasumorishima/kaggle-datasets) reads to tell how a pitcher left his outing. This dataset is the input of a pre-registered confirmation of that study (the last outing before an arm placement, commit `5bbe6ed`) on MLB 2021-2023. The files are built and checked by `pitcher-confirm-outing-2021-2023/build.py`, which runs the subset's builder unchanged with three more columns; their md5 sums are recorded in the freeze file.\n\n## Files\n\n| File | Rows | Description |\n|---|---|---|\n| `outing_2021.parquet` | {rows:statcast_2021} | Every 2021 regular-season pitch |\n| `outing_2022.parquet` | {rows:statcast_2022} | Every 2022 regular-season pitch |\n| `outing_2023.parquet` | {rows:statcast_2023} | Every 2023 regular-season pitch |\n| `tracking_gaps.csv` | {rows:tracking_gaps} | Games where a pitch-tracking column is empty for the whole game or below its fill floor (permanent gaps in Savant's data) |\n\n## Columns (all three Parquet files)\n\n`pitcher`, `game_date`, `game_pk`, `at_bat_number`, `pitch_number`, `pitch_type`, `release_speed`, `release_spin_rate`, `release_extension`, `release_pos_x`, `release_pos_z`, `arm_angle`, `pfx_x`, `pfx_z`, `zone`, `description`, `events`, `type`, `launch_speed`, `woba_denom`, `inning`, `game_type`, `spin_axis`, `inning_topbot`, `bat_score`, `post_bat_score`.\n\nNames, units and types are Baseball Savant's (see the [Statcast search CSV documentation](https://baseballsavant.mlb.com/csv-docs)). `inning_topbot` is Top or Bot; `bat_score` and `post_bat_score` are the batting team's runs before and after the pitch. Rows whose `description` is `automatic_ball` or `automatic_strike` are balls and strikes awarded without a pitch. A pitch is identified by (`game_pk`, `at_bat_number`, `pitch_number`).\n\n## Source and license\n\nData: [Baseball Savant](https://baseballsavant.mlb.com/) (MLB Advanced Media) and [MLB StatsAPI](https://statsapi.mlb.com/) (regular-season schedule). Use of MLB data is subject to MLB's terms. Packaging released under CC0.",
+  "keywords": [
+    "baseball",
+    "sports"
+  ],
+  "licenses": [
+    {
+      "name": "CC0-1.0"
+    }
+  ]
+}
