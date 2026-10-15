@@ -1,0 +1,17 @@
+{
+  "id": "yasunorim/pitcher-last-outing-confirmation-2021-2023",
+  "title": "Pitcher Last Outing Confirmation 2021-2023",
+  "code_file": "pitcher_after_confirm.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "true",
+  "enable_gpu": "false",
+  "enable_internet": "true",
+  "dataset_sources": [
+    "yasunorim/mlb-statcast-bat-tracking-2024-2025",
+    "yasunorim/mlb-statcast-2021-2023-pitch-subset",
+    "yasunorim/mlb-statcast-2021-2023-outing-columns"
+  ],
+  "competition_sources": [],
+  "kernel_sources": []
+}
