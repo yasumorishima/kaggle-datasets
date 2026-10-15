@@ -25,7 +25,7 @@ OUTING_MD5 = {2021: "4865ef17b5d991047404ca06ae5589a9", 2022: "7a2f8eeb6336cc826
 # The frozen run (GHA 38657482176, after_verdict.csv and run.txt)
 FROZEN = {"rows": (61966, 1180, 53384, 3553), "b0": 0.5644912856858865, "auc": 0.6059334572407536,
           "lo_bonf": 0.5628716317318954, "pos_auc": 0.6065369360478149, "positives": 314,
-          "rows_p1": 30492, "floor_mean": "0.5334", "floor_975": "0.5587", "game_log_out": 1}
+          "rows_p1": 30492, "floor_mean": "0.5334", "floor_975": "0.5587"}
 KEY = ["game_pk", "at_bat_number", "pitch_number"]
 OUT_COLS = ["inning_topbot", "bat_score", "post_bat_score"]
 
@@ -107,6 +107,13 @@ def load_mlb_joined():
             print(f"MLB {y}: outing dataset equals the pinned subset on {len(a_):,} keys and {len(sub_cols)} columns")
             assert set(XPITCH) <= set(sub_cols), f"{y}: pitch columns missing from the subset: {set(XPITCH) - set(sub_cols)}"
             d = join_outing(sub[XPITCH], out[KEY + OUT_COLS])
+            # the builder's gates, again in the notebook: Top/Bot only, one half per at-bat, scores never fall within a half
+            assert d.inning_topbot.isin(["Top", "Bot"]).all(), f"{y}: a half that is not Top or Bot"
+            assert d.groupby(["game_pk", "at_bat_number"]).inning_topbot.nunique().max() == 1, f"{y}: an at-bat in both halves"
+            assert d.bat_score.notna().all() and not (d.post_bat_score < d.bat_score).any(), f"{y}: post_bat_score below bat_score"
+            _st = d.sort_values(KEY)
+            _fall = (_st.groupby(["game_pk", "inning", "inning_topbot"]).bat_score.diff() < 0).any()
+            assert not _fall, f"{y}: bat_score falls within a half"
         d["season"] = y
         frames.append(d[XCOLS + XSCORE + ["season"]])
     out_ = pd.concat(frames, ignore_index=True)
@@ -157,6 +164,10 @@ def base_replacements(mode):
          'print(f"{name}: placements of these pitchers in {ROW_SEASONS[0]}-{TEST} {len(lab_y):,};'),
     ]
     return rep
+
+
+_RB, _CB = base_replacements("regression"), base_replacements("confirm")
+assert _CB[3:] == _RB and [n for n, *_ in _CB[:3]] == ["seasons", "MLB md5", "league season of the frozen anomaly scales"],     "undeclared confirm-only replacement"
 
 
 def patch_base(src, mode):
@@ -235,12 +246,90 @@ def make(mode):
 # %%
 
 
+GAP_CLASSES = ["<=7", "8-15", "16-30", "31-60", ">60", "none-early", "none-late"]
+
+
+def position_frame(rows, season_end):
+    """Label-free position of every MLB row: fifth of the pitcher-season by row order, days to his next MLB row, and
+    whether a last row of the season is within the last 14 days of the regular season (season_end: last MLB date)."""
+    r = rows.sort_values(["pitcher", "season", "day"], kind="stable")
+    g = r.groupby(["pitcher", "season"])
+    q = g.cumcount() / g.day.transform("size")
+    gap = (g.day.shift(-1) - r.day).dt.days
+    end = pd.to_datetime(r.season.map(season_end))
+    assert end.notna().all(), "a season without its last MLB date"
+    late = (end - r.day).dt.days <= 13
+    cls = np.select([gap <= 7, gap <= 15, gap <= 30, gap <= 60, gap.notna()], [0, 1, 2, 3, 4], np.where(late, 6, 5))
+    fifth = np.minimum((q * 5).astype(int), 4).to_numpy()
+    out = pd.DataFrame({"q": q.to_numpy(), "gap": gap.to_numpy(), "late": late.to_numpy(), "fifth": fifth, "cls": cls,
+                        "key": fifth * 7 + cls}, index=r.index)
+    return out.loc[rows.index]
+
+
+def merge_bins(key, y):
+    """PLAN v5: while a bin with k positives has fewer than 4k rows, the smallest such bin joins the next shorter gap
+    class of its fifth; a <=7 bin joins the <=7 bin of the previous fifth (the next for the first fifth)."""
+    key = np.asarray(key).copy()
+    while True:
+        u = np.unique(key)
+        if len(u) == 1:
+            return key
+        bad = [k for k in u if y[key == k].sum() > 0 and (key == k).sum() < 4 * y[key == k].sum()]
+        if not bad:
+            return key
+        k = min(bad)
+        f, c = divmod(int(k), 7)
+        t = f * 7 + (5 if c == 6 else c - 1) if c > 0 else ((f - 1) * 7 if f > 0 else 7)
+        while t not in u:  # follow the same order through classes that hold no rows
+            f2, c2 = divmod(int(t), 7)
+            t = f2 * 7 + (5 if c2 == 6 else c2 - 1) if c2 > 0 else ((f2 - 1) * 7 if f2 > 0 else (f2 + 1) * 7)
+            assert 0 <= t < 35, "bin merge ran off the grid"
+        key[key == k] = t
+
+
+def _check_position_rules():
+    """Label-free unit gate on the bin definition and the merge order (PLAN v5)."""
+    d0 = pd.Timestamp("2021-04-01")
+    gaps = [7, 8, 15, 16, 30, 31, 60, 61]  # one pitcher: rows at these gaps, then a last row
+    days = [d0]
+    for g_ in gaps:
+        days.append(days[-1] + pd.Timedelta(days=g_))
+    r = pd.DataFrame({"pitcher": 1, "season": 2021, "day": days})
+    r2 = pd.DataFrame({"pitcher": 2, "season": 2021, "day": [d0, pd.Timestamp("2021-12-18")]})  # last row 13 days before the end
+    r3 = pd.DataFrame({"pitcher": 3, "season": 2021, "day": [d0, pd.Timestamp("2021-12-17")]})  # last row 14 days before
+    rr = pd.concat([r, r2, r3], ignore_index=True)
+    pf = position_frame(rr, pd.Series({2021: pd.Timestamp("2021-12-31")}))
+    assert pf.cls.tolist() == [0, 1, 1, 2, 2, 3, 3, 4, 5, 4, 6, 4, 5], ("gap classes", pf.cls.tolist())
+    assert pf.fifth.tolist()[:9] == [0, 0, 1, 1, 2, 2, 3, 3, 4], ("fifths", pf.fifth.tolist())
+    k = np.array([4 * 7 + 6] * 2 + [4 * 7 + 5] * 20 + [7] * 3 + [0] * 30)
+    yk = np.array([1, 1] + [0] * 20 + [1, 0, 0] + [0] * 30, dtype=bool)
+    mk = merge_bins(k, yk)
+    assert (mk[:2] == 4 * 7 + 5).all() and (mk[22:25] == 0).all(), ("merge order", np.unique(mk))
+
+
+_check_position_rules()
+
+
+def bin_draws(y, key, auc_fn, s, seeds):
+    """Exact stratified label permutation: in each merged bin, as many rows as real positives, uniformly without
+    replacement from all of the bin's rows (real positives included)."""
+    return np.array([auc_fn(yy, s) for yy in _draw_masks(y, key, seeds)])
+
+
 def p1_stat(ns, score):
     rows_m, auc, rotated_group, floor_structure = ns["rows_m"], ns["auc"], ns["rotated_group"], ns["floor_structure"]
     np, N_BOOT = ns["np"], ns["N_BOOT"]
     no_hook = rows_m.early_hook.eq(0.0).to_numpy()
-    df = rows_m[no_hook & rows_m.y_last.notna() & np.isfinite(rows_m[score])].reset_index(drop=True)
+    POS = position_frame(rows_m, ns["season_last"]["mlb"])
+    sel = no_hook & rows_m.y_last.notna().to_numpy() & np.isfinite(rows_m[score]).to_numpy()
+    df = rows_m[sel].reset_index(drop=True)
+    pos_df = POS[sel].reset_index(drop=True)
     y, s = df.y_last.to_numpy() == 1.0, df[score].to_numpy()
+    key = merge_bins(pos_df.key.to_numpy(), y)
+    for k in np.unique(key):
+        n_k, y_k = int((key == k).sum()), int(y[key == k].sum())
+        assert y_k == 0 or n_k >= 4 * y_k or len(np.unique(key)) == 1, "a merged bin breaks the 4x rule"
+    fl_bin = bin_draws(y, key, auc, s, range(7000, 8000))
     gix = list(df.groupby(["pitcher", "season"]).indices.values())
     a = auc(y, s)
     fl = np.array([auc(y, rotated_group(s, gix, sd)) for sd in range(7000, 8000)])
@@ -257,8 +346,28 @@ def p1_stat(ns, score):
         v.append(auc(y[idx], s[idx]))
     v = np.array(v)
     v = v[np.isfinite(v)]
+    p_bin = (1 + int((fl_bin >= a).sum())) / 1001
+    # reported: within-bin stratified Mann-Whitney (sum over bins of the positives' within-bin rank sums), same draws
+    wr = pd.Series(s).groupby(key).rank().to_numpy()  # within-bin ranks (do not depend on the labels)
+    t_real = wr[y].sum()
+    t_fl = np.array([wr[_d].sum() for _d in _draw_masks(y, key, range(7000, 7200))])
+    tab = pd.DataFrame({"bin": key, "y": y}).groupby("bin").agg(rows=("y", "size"), positives=("y", "sum"))
     return {"auc": a, "floor": fl, "p": p, "lo95": np.percentile(v, 2.5), "lo_bonf": np.percentile(v, ns["LO"]),
-            "pos": int(y.sum()), "rows": len(df), "pitchers": df.pitcher.nunique(), "df": df}
+            "floor_bin": fl_bin, "p_bin": p_bin, "p_strat": (1 + int((t_fl >= t_real).sum())) / 201, "bins": tab,
+            "pos": int(y.sum()), "rows": len(df), "pitchers": df.pitcher.nunique(), "df": df, "key": key,
+            "index": rows_m.index[sel]}
+
+
+def _draw_masks(y, key, seeds):
+    groups = [(np.flatnonzero(key == k), int(y[key == k].sum())) for k in np.unique(key)]
+    for sd in seeds:
+        rng = np.random.default_rng(sd)
+        yy = np.zeros(len(y), dtype=bool)
+        for ix, k in groups:
+            if k:
+                yy[rng.choice(ix, k, replace=False)] = True
+        assert all(yy[ix].sum() == k for ix, k in groups), "a draw does not hold every bin's positive count"
+        yield yy
 
 
 # %% [markdown]
@@ -274,6 +383,14 @@ R1P = p1_stat(ns, "A_rank_pos")
 print(f"regression P1: AUC {R1['auc']:.16f} (frozen {FROZEN['auc']}), Bonferroni lower {R1['lo_bonf']:.16f}, floor mean "
       f"{R1['floor'].mean():.4f}, 97.5th {np.percentile(R1['floor'], 97.5):.4f}, p {R1['p']:.4f}, positives {R1['pos']}, rows "
       f"{R1['rows']}; position-adjusted {R1P['auc']:.16f}")
+_bd = R1["df"]
+_bt = ns["boot"](_bd, _bd.y_last.to_numpy() == 1.0, {"A": _bd.A_rank.to_numpy()}, [])
+assert _bt.loc["A", "lo95"] == R1["lo95"] and _bt.loc["A", "lo_bonf"] == R1["lo_bonf"], "the bootstrap is not the frozen one"
+print(f"reported (labels read before): the frozen P1 under the confirmation's position-matched floor: A_rank floor mean "
+      f"{R1['floor_bin'].mean():.4f}, 97.5th {np.percentile(R1['floor_bin'], 97.5):.4f}, p {R1['p_bin']:.4f}; A_rank_pos p "
+      f"{R1P['p_bin']:.4f}; stratified Mann-Whitney p {R1['p_strat']:.4f} / {R1P['p_strat']:.4f}")
+print(R1["bins"].T.to_string())
+print(f"regression: the 95% and Bonferroni bounds equal the frozen boot() ({R1['lo95']:.16f}, {R1['lo_bonf']:.16f})")
 LEAGUE_2025 = {"lsc": dict(SEEN["lsc"]), "lg": SEEN["lg"].copy()}
 print("league constants from MLB 2025 (passed to the confirmation):", LEAGUE_2025["lsc"], LEAGUE_2025["lg"].to_dict())
 if not ns["FAKE"]:
@@ -300,16 +417,51 @@ assert ns["ROW_SEASONS"] == [2021, 2022, 2023] and ns["TEST"] == 2023, "the conf
 assert SEEN["lsc"] == LEAGUE_2025["lsc"] and SEEN["lg"].equals(LEAGUE_2025["lg"]), "the confirmation did not use the 2025 constants"
 C2 = p1_stat(ns, "A_rank")
 C2P = p1_stat(ns, "A_rank_pos")
-ok_main = bool(C2["lo95"] > 0.5 and C2["p"] <= 0.025)
-ok_pos = bool(C2P["lo95"] > 0.5 and C2P["p"] <= 0.025)
+def decide(r):
+    return bool(r["p"] <= 0.025 and r["p_bin"] <= 0.025)
+
+
+def verdict_of(r_main, r_pos):
+    return "SUPPORTED" if decide(r_main) and decide(r_pos) else "NOT SUPPORTED"
+
+
+assert decide({"p": 0.001, "p_bin": 0.001}) and decide({"p": 0.025, "p_bin": 0.025}), "the rule does not pass at its bound"
+assert not decide({"p": 0.001, "p_bin": 0.026}) and not decide({"p": 0.026, "p_bin": 0.001}), "the rule passes with one floor beaten"
+ok_main, ok_pos = decide(C2), decide(C2P)
+print("C2 rows and positives per merged position bin (key = fifth * 7 + gap class; classes " + ", ".join(GAP_CLASSES) + "):")
+print(C2["bins"].T.to_string())
 for nm, r_, ok in (("C2 MLB 2021-2023, last outing before an arm placement, no early hook [A_rank]", C2, ok_main),
                    ("C2 position-adjusted [A_rank_pos]", C2P, ok_pos)):
     print(f"{nm}: AUC {r_['auc']:.4f}; 95% lower {r_['lo95']:.4f} (Bonferroni 0.625% {r_['lo_bonf']:.4f}); whole-group "
           f"floor mean {r_['floor'].mean():.4f}, 97.5th {np.percentile(r_['floor'], 97.5):.4f}, max {r_['floor'].max():.4f}, "
-          f"p {r_['p']:.4f}; positives {r_['pos']:,}, rows {r_['rows']:,}, pitchers {r_['pitchers']:,} -> "
+          f"p {r_['p']:.4f}; position-matched floor mean {r_['floor_bin'].mean():.4f}, 97.5th "
+          f"{np.percentile(r_['floor_bin'], 97.5):.4f}, p {r_['p_bin']:.4f} (reported: stratified Mann-Whitney p "
+          f"{r_['p_strat']:.4f}); positives {r_['pos']:,}, rows {r_['rows']:,}, pitchers {r_['pitchers']:,} -> "
           f"{'passes' if ok else 'does not pass'}")
-verdict = "SUPPORTED" if ok_main and ok_pos else "NOT SUPPORTED"
-print(f"C2: {verdict} (both lines must pass)")
+verdict = verdict_of(C2, C2P)
+print(f"{'FAKE LABELS (code test, not a result) ' if FAKE_RUN else ''}C2: {verdict} (both floors, both lines)")
+if FAKE_RUN:  # a pure position score (the merged bin) must sit exactly on the position-matched floor
+    _rm = ns["rows_m"]
+    _rm["_kscore"] = np.nan
+    _rm.loc[C2["index"], "_kscore"] = C2["key"].astype(float)
+    _k = p1_stat(ns, "_kscore")
+    assert np.array_equal(_k["key"], C2["key"]) and _k["p_bin"] == 1.0, ("the position-matched floor does not hold position", _k["p_bin"])
+    print(f"position-only score: AUC {_k['auc']:.4f}, position-matched p {_k['p_bin']:.4f} (must be 1), rotation p {_k['p']:.4f}")
+    _rm.drop(columns="_kscore", inplace=True)
+if FAKE_RUN:  # the verdict must be reachable by a planted signal, and only when both lines carry it
+    _rm = ns["rows_m"]
+    for _sc in ("A_rank", "A_rank_pos"):
+        _rm[_sc + "_up"] = np.where(_rm.y_last.eq(1.0), _rm[_sc] + 0.3, _rm[_sc])
+        _rm[_sc + "_down"] = np.where(_rm.y_last.eq(1.0), _rm[_sc] - 0.3, _rm[_sc])
+    _up, _upp = p1_stat(ns, "A_rank_up"), p1_stat(ns, "A_rank_pos_up")
+    _dn, _dnp = p1_stat(ns, "A_rank_down"), p1_stat(ns, "A_rank_pos_down")
+    print(f"planted +0.3: AUC {_up['auc']:.4f} / {_upp['auc']:.4f}, p {_up['p']:.4f} / {_upp['p']:.4f}, lower {_up['lo95']:.4f} / "
+          f"{_upp['lo95']:.4f}, position-matched p {_up['p_bin']:.4f} / {_upp['p_bin']:.4f}; planted -0.3: AUC {_dn['auc']:.4f} / {_dnp['auc']:.4f}")
+    assert verdict_of(_up, _upp) == "SUPPORTED", "the verdict cannot be reached by a planted signal"
+    assert verdict_of(_up, _dnp) == "NOT SUPPORTED" and verdict_of(_dn, _upp) == "NOT SUPPORTED", \
+        "the verdict passes with one line against it"
+    assert verdict_of(_dn, _dnp) == "NOT SUPPORTED", "the verdict passes a planted reverse signal"
+    _rm.drop(columns=[c for c in _rm.columns if c.endswith(("_up", "_down"))], inplace=True)
 
 # %% [markdown]
 # ## Reported, not tested
@@ -334,7 +486,8 @@ print(f"reported: dev (mph) in the C2 rows: positives mean {pos.dev.mean():+.3f}
 
 summary = pd.DataFrame([{"test": "C2 MLB 2021-2023 last outing before an arm placement, no early hook, daily rank of A",
                          "value": C2["auc"], "lo95": C2["lo95"], "p_rotation": C2["p"], "position_adjusted": C2P["auc"],
-                         "position_adjusted_lo95": C2P["lo95"], "position_adjusted_p": C2P["p"], "positives": C2["pos"],
+                         "position_adjusted_lo95": C2P["lo95"], "position_adjusted_p": C2P["p"], "p_position_matched": C2["p_bin"],
+                         "position_adjusted_p_position_matched": C2P["p_bin"], "positives": C2["pos"],
                          "verdict": verdict}])
 if FAKE_RUN:
     print("FAKE LABELS: code test only, no verdict written")
