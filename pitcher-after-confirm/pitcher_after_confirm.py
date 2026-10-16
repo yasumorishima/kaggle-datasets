@@ -387,6 +387,14 @@ def _check_pool_rules():
     # the secondary rule merges only until a stratum with arm rows has a non-arm row
     m5 = merge_strata(np.zeros(4), np.zeros(4, int), np.array([0, 1, 2, 2]), np.array([1, 0, 1, 0], bool), violates_both)
     assert m5.tolist() == [0, 0, 2, 2], ("secondary rule", m5.tolist())
+    # a class merge stays inside its role: role 0's none stratum joins role 0's >60, not role 1's
+    m6 = merge_strata(np.array([0.0] * 2 + [0.0] * 20 + [1.0] * 20), np.array([4] * 2 + [3] * 20 + [3] * 20),
+                      np.zeros(42, int), np.array([1, 1] + [0] * 40, bool))
+    assert len(np.unique(m6[:22])) == 1 and m6[22] != m6[0] and len(np.unique(m6[22:])) == 1, ("class merge across roles", np.unique(m6))
+    # the 4x boundary: 2 positives in 7 rows merge, in 8 rows they do not
+    m7 = merge_strata(np.zeros(17), np.zeros(17, int), np.array([0] * 7 + [1] * 10), np.array([1, 1] + [0] * 15, bool))
+    m8 = merge_strata(np.zeros(18), np.zeros(18, int), np.array([0] * 8 + [1] * 10), np.array([1, 1] + [0] * 16, bool))
+    assert len(np.unique(m7)) == 1 and len(np.unique(m8)) == 2, ("the 4x boundary", np.unique(m7), np.unique(m8))
     # a role with a single violating stratum is left as it is
     m2 = merge_strata(np.zeros(3), np.zeros(3, int), np.zeros(3, int), np.array([1, 1, 0], bool))
     assert len(np.unique(m2)) == 1, "a single-stratum role must stop"
@@ -513,6 +521,304 @@ def arm_vs_nonarm_labels(rows_m, P, il_lab, il_by):
     return y, int((cov & rows_m.next_arm.eq(False).to_numpy()).sum())
 
 
+def _check_label_rules():
+    """Label rules of PLAN v7.1/v7.2 on a synthetic table (no data): positives, non-arm placements, any arm placement
+    within 14 days, placements without injury text, the gap, the other-level filter, the early hook, the secondary's
+    last-row rule and its COVID exclusion."""
+    T = pd.Timestamp
+    inf = np.inf
+    rows = [  # pitcher, day, use14, hook, il14, next_arm, next_text, days_to_il, y_last
+        (1, "2021-04-01", True, 0.0, True, True, True, 4, 1.0),     # r0 positive (arm 04-05), next row 19 days later -> 1
+        (1, "2021-04-20", True, 0.0, True, False, True, 3, np.nan),  # r1 non-arm 04-23 -> 0; secondary 0
+        (1, "2021-05-10", True, 0.0, True, False, True, 2, np.nan),  # r2 non-arm 05-12 next, arm 05-20 within 14 -> NaN
+        (1, "2021-05-30", True, 0.0, False, False, False, inf, 0.0),  # r3 next row 3 days later -> NaN
+        (1, "2021-06-02", False, 0.0, False, False, False, inf, np.nan),  # r4 other-level outing (use14 False) -> NaN
+        (1, "2021-06-25", True, 0.0, True, False, False, 5, np.nan),  # r5 placement without injury text -> NaN
+        (1, "2021-07-20", True, 0.0, False, False, False, inf, 0.0),  # r6 no placement, gap 26 -> 0
+        (1, "2021-08-15", True, 1.0, False, False, False, inf, 0.0),  # r7 early hook -> NaN
+        (2, "2021-07-01", True, 0.0, True, False, True, 9, np.nan),  # p2: non-arm 07-10; the last row is 07-10 (gap 0)
+        (2, "2021-07-10", True, 0.0, True, False, True, 0, np.nan),  #     -> secondary NaN for both rows
+        (2, "2021-08-20", True, 0.0, False, False, False, inf, 0.0),
+        (3, "2021-08-01", True, 0.0, True, False, True, 4, np.nan),  # p3: non-arm with COVID in its description
+    ]
+    rm = pd.DataFrame(rows, columns=["pitcher", "day", "use14", "early_hook", "il14", "next_arm", "next_text", "days_to_il",
+                                     "y_last"])
+    rm["day"] = pd.to_datetime(rm.day)
+    rm["season"], rm["role"], rm["A_rank"], rm["A_rank_pos"], rm["ok14"] = 2021, 0.0, 0.5, 0.5, True
+    eff = lambda *d: np.array([np.datetime64(x) for x in d], "datetime64[ns]")
+    il_by = {1: (eff("2021-04-05", "2021-04-23", "2021-05-12", "2021-05-20", "2021-06-30"),
+                 np.array([True, False, False, True, False]), np.array([True, True, True, True, False])),
+             2: (eff("2021-07-10"), np.array([False]), np.array([True])),
+             3: (eff("2021-08-05"), np.array([False]), np.array([True]))}
+    il_lab = pd.DataFrame({"pitcher": [1, 1, 1, 1, 1, 2, 3],
+                           "effective": pd.to_datetime(["2021-04-05", "2021-04-23", "2021-05-12", "2021-05-20", "2021-06-30",
+                                                        "2021-07-10", "2021-08-05"]),
+                           "description": ["x placed on the 15-day injured list. Right elbow inflammation."] +
+                                          ["x placed on the 15-day injured list. Left oblique strain."] * 5 +
+                                          ["x placed on the 10-day injured list. COVID-19 related."]})
+    P = pool_frame(rm, pd.Series({2021: T("2021-04-01")}), pd.Series({2021: T("2021-09-30")}))
+    y, near = pool_labels(rm, P, il_by)
+    want = [1, 0, None, None, None, None, 0, None, 0, 0, 0, 0]
+    got = [None if np.isnan(v) else int(v) for v in y]
+    assert got == want, ("pool labels", got)
+    ya, ncov = arm_vs_nonarm_labels(rm, P, il_lab, il_by)
+    want2 = [1, 0, None, None, None, None, None, None, None, None, None, None]
+    got2 = [None if np.isnan(v) else int(v) for v in ya]
+    assert got2 == want2 and ncov == 1, ("secondary labels", got2, ncov)
+
+
+_check_label_rules()
+
+
+# %% [markdown]
+# ## PLAN v8.2: the deciding contrast, arm positives against clean long breaks
+
+# %%
+from scipy.stats import spearmanr
+
+L_BY_SEASON = {2020: 11, 2021: 11}  # the pitchers' IL minimum was 10 days in 2020-2021 and 15 days from 2022
+
+
+def long_cut(season):
+    return L_BY_SEASON.get(int(season), 16)
+
+
+def il_between(rows_m, il_by, end):
+    """True where any IL placement in il_by (either level, arm or not, with or without text) is effective on a day d with
+    row day <= d <= end (end: one datetime64 per row)."""
+    out = np.zeros(len(rows_m), bool)
+    days = rows_m.day.to_numpy()
+    end = np.asarray(end, "datetime64[ns]")
+    for b, ix in rows_m.groupby("pitcher").indices.items():
+        e = np.sort(np.asarray(il_by.get(b, (np.array([], "datetime64[ns]"),))[0], "datetime64[ns]"))
+        if len(e) == 0:
+            continue
+        lo = np.searchsorted(e, days[ix], side="left")
+        hi = np.searchsorted(e, end[ix], side="right")
+        out[ix] = hi > lo
+    return out
+
+
+def clean_parts(rows_m, P, il_by, season_last):
+    """Row masks of PLAN v8.1/v8.2: the pool base, no IL placement 0-14 days later, long (next MLB row >= L days later or
+    none), the IL placement test up to the day before the next MLB row (or the season's last MLB date), short (8 to L-1)."""
+    base = pool_base(rows_m, P)
+    quiet = ~rows_m.il14.to_numpy()
+    assert not (quiet & il_between(rows_m, il_by, rows_m.day.to_numpy() + np.timedelta64(14, "D"))).any(), \
+        "a row without il14 has an IL placement 0-14 days later"
+    gap = P.gap.to_numpy()
+    none = np.isnan(gap)
+    L = rows_m.season.map(long_cut).to_numpy()
+    long_ = none | (np.nan_to_num(gap, nan=0.0) >= L)
+    last = pd.to_datetime(rows_m.season.map(season_last)).to_numpy()
+    nxt = rows_m.day.to_numpy() + (np.nan_to_num(gap, nan=1.0).astype(int) - 1).astype("timedelta64[D]")
+    between = il_between(rows_m, il_by, np.where(none, last, nxt))
+    return {"base": base, "quiet": quiet, "long": long_, "between": between, "none": none,
+            "short": ~none & ~long_ & (np.nan_to_num(gap, nan=0.0) >= 8)}
+
+
+def clean_labels(rows_m, P, il_by, season_last, clean=True):
+    """PLAN v8.1 item 1: 1 = a frozen P1 positive in the pool; 0 = a clean long break (pool row, no IL placement 0-14
+    days later, next MLB row >= L days later or none, and, if clean, no IL placement until the day before the next MLB
+    row or the season's last MLB date); NaN otherwise."""
+    c = clean_parts(rows_m, P, il_by, season_last)
+    zero = c["base"] & c["quiet"] & c["long"] & (~c["between"] if clean else True)
+    assert not (zero & ~(c["base"] & c["quiet"])).any(), "a clean long break outside pool_base & ~il14"
+    y = np.full(len(rows_m), np.nan)
+    y[zero] = 0.0
+    y[rows_m.y_last.eq(1.0).to_numpy() & c["base"]] = 1.0
+    return y
+
+
+def merge_kind(role, none, y, min_zeros=5):
+    """PLAN v8.1/v8.2 item 2: strata role x kind (none / not none); a role in which a stratum with positives has fewer
+    than min_zeros zeros becomes one stratum; never across roles; a merged stratum still short of zeros is kept."""
+    role, none, y = np.asarray(role, float), np.asarray(none, bool), np.asarray(y, bool)
+    key = (role * 10 + none).astype(int)
+    for r in np.unique(role):
+        m = role == r
+        bad = [k for k in np.unique(key[m]) if y[key == k].sum() > 0 and (~y[key == k]).sum() < min_zeros]
+        if bad:
+            key[m] = int(r * 10)
+    return key
+
+
+def clean_test(ns, score, y=None, clean=True, n_draws=1000, seed0=7000):
+    """PLAN v8.2 items 2-3: role x kind strata, stratified AUC, exact stratified permutation (p over n_draws + 1); the
+    merged table, the balance table and the fifth-reweighted sensitivity are returned beside it."""
+    rows_m = ns["rows_m"]
+    P = pool_frame(rows_m, ns["season_first"]["mlb"], ns["season_last"]["mlb"])
+    if y is None:
+        y = clean_labels(rows_m, P, ns["il_by"], ns["season_last"]["mlb"], clean)
+    sel = np.isfinite(y) & np.isfinite(rows_m[score]).to_numpy()
+    yy = y[sel] == 1.0
+    Ps = P[sel]
+    key = merge_kind(Ps.role.to_numpy(), Ps.gap.isna().to_numpy(), yy)
+    rr, nn = Ps.role.to_numpy().astype(int), Ps.gap.isna().to_numpy()
+    assert (key // 10 == rr).all(), "a clean-contrast stratum crosses roles"
+    two = np.isin(rr, [r for r in np.unique(rr) if len(np.unique(key[rr == r])) == 2])
+    assert (key[two] % 10 == nn[two]).all(), "a clean-contrast stratum mixes none and not-none rows"
+    tab = pd.DataFrame({"stratum": key, "y": yy}).groupby("stratum").agg(rows=("y", "size"), positives=("y", "sum"))
+    for k_, row in tab.iterrows():  # the merge rule, checked before A is read
+        alone = k_ % 10 == 0 and (tab.index // 10 == k_ // 10).sum() == 1  # a merged role (kept even if short)
+        assert row.positives == 0 or row.rows - row.positives >= 5 or alone, ("a stratum breaks the merge rule", k_)
+    s = rows_m[score].to_numpy()[sel]
+    st = Strat(key, s)
+    a = st.auc(yy)
+    dropped = st.dropped
+    fl = np.array([st.auc(m) for m in _draw_masks(yy, key, range(seed0, seed0 + n_draws))])
+    p = np.nan if not np.isfinite(a) else (1 + int((fl >= a).sum())) / (n_draws + 1)
+    # reported: positives reweighted to the zeros' calendar-fifth distribution within each stratum
+    fif = Ps.fifth.to_numpy()
+    num = den = 0.0
+    for k_ in np.unique(key):
+        m = key == k_
+        z, q = m & ~yy, m & yy
+        if not z.any() or not q.any():
+            continue
+        zs = np.sort(s[z])
+        frac = (np.searchsorted(zs, s[q], "left") + np.searchsorted(zs, s[q], "right")) / (2 * len(zs))
+        zf = np.bincount(fif[z], minlength=5) / z.sum()
+        qf = np.bincount(fif[q], minlength=5) / q.sum()
+        w = zf[fif[q]] / qf[fif[q]]
+        w = w * q.sum() / w.sum() if w.sum() > 0 else w  # each stratum keeps the weight of its k_s positives
+        num += (w * frac).sum()
+        den += w.sum()
+    rw = num / den if den > 0 else np.nan
+    cols = [c for c in ("age", "n_prev_il", "own_scale", "role") if c in rows_m.columns]
+    bal = rows_m.loc[rows_m.index[sel], cols].assign(_y=yy).groupby("_y").mean().T
+    return {"auc": a, "floor": fl, "p": p, "table": tab, "pos": int(yy.sum()), "rows": int(sel.sum()), "key": key,
+            "dropped": dropped, "index": rows_m.index[sel], "y": yy, "reweighted": rw, "balance": bal}
+
+
+def _check_clean_rules():
+    """Label-free unit gates of PLAN v8.2 on a synthetic table (no data)."""
+    T = pd.Timestamp
+    rows = [  # pitcher, season, day, il14, y_last
+        (1, 2021, "2021-04-01", False, 0.0),   # r0 next row 11 days later, 2021 -> long -> 0
+        (1, 2021, "2021-04-12", False, 0.0),   # r1 next row 30 days later, an IL placement on 05-11 (the day before) -> NaN
+        (1, 2021, "2021-05-12", False, 0.0),   # r2 last row of 2021 ("none"), an IL placement on 07-01 -> NaN
+        (2, 2022, "2022-04-01", False, 0.0),   # r3 next row 15 days later, 2022 -> short -> NaN
+        (2, 2022, "2022-04-16", False, 0.0),   # r4 next row 16 days later -> 0
+        (2, 2022, "2022-05-02", True, 1.0),    # r5 positive (an arm placement 05-05) -> 1
+        (2, 2022, "2022-06-10", False, 0.0),   # r6 "none", no placement after it -> 0
+        (3, 2022, "2022-04-01", True, 0.0),    # r7 a placement within 14 days -> NaN
+        (3, 2022, "2022-05-20", False, 0.0),   # r8 "none" -> 0
+        (4, 2022, "2022-04-01", False, 0.0),   # r9 next row 20 days later; an IL placement on that row's own day 04-21 -> 0
+        (4, 2022, "2022-04-21", True, 0.0),    # r10 the placement is effective on this row's day (il14) -> NaN
+        (4, 2022, "2022-05-30", False, 0.0),   # r11 "none", nothing after it -> 0
+        (5, 2021, "2021-06-01", True, 0.0),    # r12 2021, next row 11 days later (long); an IL placement 12 days later,
+        (5, 2021, "2021-06-12", True, 0.0),    #     after the day before the next row: only il14 makes r12 NaN; r13 NaN
+    ]
+    rm = pd.DataFrame(rows, columns=["pitcher", "season", "day", "il14", "y_last"])
+    rm["day"] = pd.to_datetime(rm.day)
+    rm["role"], rm["use14"], rm["early_hook"], rm["A_rank"], rm["A_rank_pos"] = 0.0, True, 0.0, 0.5, 0.5
+    eff = lambda *d: np.array([np.datetime64(x) for x in d], "datetime64[ns]")
+    il_by = {1: (eff("2021-05-11", "2021-07-01"), np.array([False, False]), np.array([True, True])),
+             2: (eff("2022-05-05"), np.array([True]), np.array([True])),
+             3: (eff("2022-04-05"), np.array([False]), np.array([True])),
+             4: (eff("2022-04-21"), np.array([False]), np.array([True])),
+             5: (eff("2021-06-13"), np.array([False]), np.array([True]))}
+    sf = pd.Series({2021: T("2021-04-01"), 2022: T("2022-04-01")})
+    sl = pd.Series({2021: T("2021-09-30"), 2022: T("2022-09-30")})
+    P = pool_frame(rm, sf, sl)
+    got = [None if np.isnan(v) else int(v) for v in clean_labels(rm, P, il_by, sl)]
+    assert got == [0, None, None, None, 0, 1, 0, None, 0, 0, None, 0, None, None], ("clean labels", got)
+    got2 = [None if np.isnan(v) else int(v) for v in clean_labels(rm, P, il_by, sl, clean=False)]
+    assert got2 == [0, 0, 0, None, 0, 1, 0, None, 0, 0, None, 0, None, None], ("labels without the cleaning rule", got2)
+    # merge: role 0 not-none has a positive and 3 zeros -> role 0 one stratum; role 1 keeps two; a role short after merging is kept
+    role = np.array([0.0] * 10 + [1.0] * 14 + [2.0] * 3)
+    none = np.array([0, 0, 0, 0] + [1] * 6 + [0] * 7 + [1] * 7 + [0, 0, 1], bool)
+    yv = np.array([1, 0, 0, 0] + [0] * 6 + [1] + [0] * 6 + [1] + [0] * 6 + [1, 0, 0], bool)
+    k = merge_kind(role, none, yv)
+    assert len(np.unique(k[:10])) == 1 and len(np.unique(k[10:24])) == 2 and len(np.unique(k[24:])) == 1, ("merge_kind", k.tolist())
+    assert len(set(k[:10]) & set(k[10:])) == 0, "merge_kind crossed roles"
+    for nz, want_n in ((4, 1), (5, 2)):  # 4 zeros beside a positive merge the role, 5 do not
+        yb = np.array([1] + [0] * nz + [0] * 9, bool)
+        kb = merge_kind(np.zeros(len(yb)), np.array([0] * (1 + nz) + [1] * 9, bool), yb)
+        assert len(np.unique(kb)) == want_n, ("the 5-zero boundary", nz, kb.tolist())
+    kc = merge_kind(np.zeros(12), np.array([0] * 9 + [1] * 3, bool), np.array([1] + [0] * 11, bool))
+    assert len(np.unique(kc)) == 2, ("a short stratum without positives merged", kc.tolist())
+
+
+_check_clean_rules()
+
+
+def _fifth_test(ns, score, y, n_draws=1000, seed0=7000):
+    """Role x calendar fifth strata (a stratum with positives needs at least as many zeros; merged by merge_strata)."""
+    rows_m = ns["rows_m"]
+    P = pool_frame(rows_m, ns["season_first"]["mlb"], ns["season_last"]["mlb"])
+    sel = np.isfinite(y) & np.isfinite(rows_m[score]).to_numpy()
+    yy = y[sel] == 1.0
+    Ps = P[sel]
+    key = merge_strata(Ps.role.to_numpy(), np.zeros(len(Ps), int), Ps.fifth.to_numpy(), yy, lambda n, k: k > 0 and n - k < k)
+    st = Strat(key, rows_m[score].to_numpy()[sel])
+    a = st.auc(yy)
+    fl = np.array([st.auc(m) for m in _draw_masks(yy, key, range(seed0, seed0 + n_draws))])
+    return {"auc": a, "floor": fl, "excess": a - fl.mean(), "pos": int(yy.sum()), "rows": int(sel.sum()), "sel": sel,
+            "key": key, "y": yy}
+
+
+def reported_v82(ns, label, n_boot=1000):
+    """PLAN v8.1 item 6 / v8.2 (reported, not deciding)."""
+    rows_m = ns["rows_m"]
+    P = pool_frame(rows_m, ns["season_first"]["mlb"], ns["season_last"]["mlb"])
+    sl = ns["season_last"]["mlb"]
+    c = clean_parts(rows_m, P, ns["il_by"], sl)
+    clean0 = c["base"] & c["quiet"] & c["long"] & ~c["between"]
+    pos = rows_m.y_last.eq(1.0).to_numpy() & c["base"]
+    print(f"{label}: long breaks removed by the cleaning rule (an IL placement before the next MLB row or season end): "
+          f"{int((c['base'] & c['quiet'] & c['long'] & c['between']).sum())}; clean long breaks {int(clean0.sum())} "
+          f"(none {int((clean0 & c['none']).sum())}); short no-placement rows {int((c['base'] & c['quiet'] & c['short']).sum())}")
+    for sc in ("A_rank", "A_rank_pos"):
+        nc = clean_test(ns, sc, clean=False)
+        print(f"{label} [{sc}] without the cleaning rule: stratified AUC {nc['auc']:.4f}, floor mean {nc['floor'].mean():.4f}, "
+              f"p {nc['p']:.4f} ({nc['pos']} vs {nc['rows'] - nc['pos']})")
+    # (a) arm vs short no-placement and long vs short no-placement, role x fifth, and a pitcher bootstrap of their difference
+    ya = np.full(len(rows_m), np.nan)
+    ya[c["base"] & c["quiet"] & c["short"]] = 0.0
+    yl = ya.copy()
+    ya[pos] = 1.0
+    yl[clean0] = 1.0
+    for sc in ("A_rank", "A_rank_pos"):
+        ra, rl = _fifth_test(ns, sc, ya), _fifth_test(ns, sc, yl)
+        pit = rows_m.pitcher.to_numpy()
+        rng = np.random.default_rng(11)
+        ub = np.unique(pit)
+        d = []
+        for _ in range(n_boot):  # resample pitchers with replacement; a row enters as often as its pitcher is drawn
+            mult = pd.Series(pit).map(pd.Series(rng.choice(ub, len(ub))).value_counts()).fillna(0).astype(int).to_numpy()
+            vals = []
+            for r_ in (ra, rl):
+                isel = np.flatnonzero(r_["sel"])
+                rep = mult[isel]
+                vals.append(Strat(np.repeat(r_["key"], rep), np.repeat(rows_m[sc].to_numpy()[isel], rep)).auc(np.repeat(r_["y"], rep)))
+            d.append((vals[0] - ra["floor"].mean()) - (vals[1] - rl["floor"].mean()))
+        d = np.array(d)
+        d = d[np.isfinite(d)]
+        if len(d) == 0:
+            d = np.array([np.nan])
+        print(f"{label} [{sc}] (a) arm vs short no-placement (role x fifth): AUC {ra['auc']:.4f}, excess {ra['excess']:+.4f} "
+              f"({ra['pos']} vs {ra['rows'] - ra['pos']}); clean long vs short: AUC {rl['auc']:.4f}, excess {rl['excess']:+.4f} "
+              f"({rl['pos']} vs {rl['rows'] - rl['pos']}); difference of excesses {ra['excess'] - rl['excess']:+.4f}, pitcher "
+              f"bootstrap 95% [{np.percentile(d, 2.5):+.4f}, {np.percentile(d, 97.5):+.4f}] ({len(d)} draws)")
+    # (b) non-arm IL last outings against the clean long breaks
+    yna, _ = arm_vs_nonarm_labels(rows_m, P, ns["il_lab"], ns["il_by"])
+    yb = np.full(len(rows_m), np.nan)
+    yb[clean0] = 0.0
+    yb[yna == 0.0] = 1.0
+    for sc in ("A_rank", "A_rank_pos"):
+        rb = clean_test(ns, sc, y=yb)
+        print(f"{label} [{sc}] (b) non-arm IL last outings vs clean long breaks: stratified AUC {rb['auc']:.4f}, floor mean "
+              f"{rb['floor'].mean():.4f}, p {rb['p']:.4f} ({rb['pos']} vs {rb['rows'] - rb['pos']})")
+    # (d) label-free: exact gap against A_rank among the clean long breaks that are not "none", within role
+    for r in (0.0, 1.0):
+        m = clean0 & ~c["none"] & (P.role.to_numpy() == r) & np.isfinite(rows_m.A_rank.to_numpy())
+        if m.sum() >= 5:
+            print(f"{label} (d) role {r:.0f}: Spearman of exact gap with A_rank among {int(m.sum())} clean long breaks "
+                  f"(not none): {spearmanr(P.gap.to_numpy()[m], rows_m.A_rank.to_numpy()[m]).correlation:+.4f}")
+
+
 # %% [markdown]
 # ## 1. Regression gate: the frozen 2024-2026 run, reproduced through the join
 
@@ -562,7 +868,9 @@ assert ns["ROW_SEASONS"] == [2021, 2022, 2023] and ns["TEST"] == 2023, "the conf
 assert SEEN["lsc"] == LEAGUE_2025["lsc"] and SEEN["lg"].equals(LEAGUE_2025["lg"]), "the confirmation did not use the 2025 constants"
 C2 = p1_stat(ns, "A_rank")
 C2P = p1_stat(ns, "A_rank_pos")
-Q2, Q2P = pool_test(ns, "A_rank"), pool_test(ns, "A_rank_pos")
+Q2, Q2P = clean_test(ns, "A_rank"), clean_test(ns, "A_rank_pos")  # PLAN v8.2: the deciding contrast
+assert all(len(r_["floor"]) == 1000 for r_ in (C2, C2P, Q2, Q2P)), "the floors are not 1,000 draws"
+assert all("reweighted" in q_ for q_ in (Q2, Q2P)), "the deciding contrast is not the clean-break test"
 
 
 def decide(r_rot, r_pool):
@@ -577,15 +885,18 @@ assert decide({"p": 0.001}, {"p": 0.001}) and decide({"p": 0.025}, {"p": 0.025})
 assert not decide({"p": 0.001}, {"p": 0.026}) and not decide({"p": 0.026}, {"p": 0.001}), "the rule passes with one floor beaten"
 assert not decide({"p": 0.001}, {"p": np.nan}) and not decide({"p": np.nan}, {"p": 0.001}), "the rule passes a NaN p"
 ok_main, ok_pos = decide(C2, Q2), decide(C2P, Q2P)
-print("C2 pool rows and positives per merged stratum (stratum = role * 100 + gap class * 10 + first calendar fifth; "
-      "classes " + ", ".join(GAP_CLASSES) + f"); positives within 7 days of the next row, left out: {Q2['near_left_out']}")
+print("C2 rows and positives per stratum of the clean-break contrast (stratum = role * 10 + none; a role merged into one "
+      "stratum shows role * 10)")
 print(Q2["table"].T.to_string())
+print(f"strata dropped from the statistic (positives but no zeros): {Q2['dropped']} / {Q2P['dropped']}")
+print("balance (means; False = clean long breaks, True = arm positives):" + chr(10) + Q2["balance"].round(3).to_string())
 for nm, r_, q_, ok in (("C2 MLB 2021-2023, last outing before an arm placement, no early hook [A_rank]", C2, Q2, ok_main),
                        ("C2 position-adjusted [A_rank_pos]", C2P, Q2P, ok_pos)):
     print(f"{nm}: AUC {r_['auc']:.4f}; 95% lower {r_['lo95']:.4f} (Bonferroni 0.625% {r_['lo_bonf']:.4f}); whole-group "
           f"floor mean {r_['floor'].mean():.4f}, 97.5th {np.percentile(r_['floor'], 97.5):.4f}, max {r_['floor'].max():.4f}, "
-          f"p {r_['p']:.4f}; pool: stratified AUC {q_['auc']:.4f}, floor mean {q_['floor'].mean():.4f}, 97.5th "
-          f"{np.percentile(q_['floor'], 97.5):.4f}, p {q_['p']:.4f} (positives {q_['pos']:,} in {q_['rows']:,} pool rows); "
+          f"p {r_['p']:.4f}; clean long breaks: stratified AUC {q_['auc']:.4f}, floor mean {q_['floor'].mean():.4f}, 97.5th "
+          f"{np.percentile(q_['floor'], 97.5):.4f}, p {q_['p']:.4f} (positives {q_['pos']:,}, clean long breaks {q_['rows'] - q_['pos']:,}; "
+          f"reported: positives reweighted to the zeros' calendar fifths {q_['reweighted']:.4f}); "
           f"positives {r_['pos']:,}, rows {r_['rows']:,}, pitchers {r_['pitchers']:,} -> {'passes' if ok else 'does not pass'}")
 verdict = verdict_of((C2, Q2), (C2P, Q2P))
 print(f"{'FAKE LABELS (code test, not a result) ' if FAKE_RUN else ''}C2: {verdict} (both floors, both lines)")
@@ -597,6 +908,23 @@ if FAKE_RUN:  # fake placements are random days the pitcher keeps pitching after
     _cand = np.flatnonzero(_yf == 0.0)
     _yf[np.random.default_rng(5).choice(_cand, min(30, len(_cand) // 5), replace=False)] = 1.0
     print(f"fake pool positives for the gates: {int((_yf == 1.0).sum())} of {len(_cand)} pool rows")
+    _cp = clean_parts(ns["rows_m"], _Pf, ns["il_by"], ns["season_last"]["mlb"])
+    _yc = clean_labels(ns["rows_m"], _Pf, ns["il_by"], ns["season_last"]["mlb"])
+    _yc[_yc == 1.0] = np.nan
+    _cs = np.flatnonzero(_cp["base"] & _cp["quiet"] & _cp["short"])
+    _yc[np.random.default_rng(8).choice(_cs, min(30, len(_cs)), replace=False)] = 1.0
+    print(f"fake clean-contrast positives: {int((_yc == 1.0).sum())}; clean long breaks {int((_yc == 0.0).sum())}")
+    _rm0 = ns["rows_m"]
+    _QC = clean_test(ns, "A_rank", y=_yc)
+    _rm0["_kscore"] = np.nan
+    _rm0.loc[_QC["index"], "_kscore"] = _QC["key"].astype(float)
+    _kc = clean_test(ns, "_kscore", y=_yc)
+    assert np.array_equal(_kc["key"], _QC["key"]), "the stratum-only score changed the strata"
+    _ck = _QC["key"].astype(float)
+    _cpa = {round(ns["auc"](m_, _ck), 12) for m_ in _draw_masks(_QC["y"], _QC["key"], range(7000, 7100))}
+    assert _cpa == {round(ns["auc"](_QC["y"], _ck), 12)}, ("a clean-contrast draw moves positives across strata", len(_cpa))
+    _rm0.drop(columns="_kscore", inplace=True)
+    print(f"clean contrast: the plain AUC of the stratum key is the same in 100 draws; strata {len(np.unique(_QC['key']))}")
     QF = pool_test(ns, "A_rank", y=_yf)
     _rm = ns["rows_m"]
     _rm["_kscore"] = np.nan
@@ -617,14 +945,14 @@ if FAKE_RUN:  # fake placements are random days the pitcher keeps pitching after
     print(f"stratified AUC equals the weighted per-stratum AUCs ({_direct:.12f})")
 if FAKE_RUN:  # the verdict must be reachable by a planted signal, and only when both lines carry it
     _rm = ns["rows_m"]
-    _mark = _rm.y_last.eq(1.0).to_numpy() | (_yf == 1.0)
+    _mark = _rm.y_last.eq(1.0).to_numpy() | (_yf == 1.0) | (_yc == 1.0)
     for _sc in ("A_rank", "A_rank_pos"):
         _rm[_sc + "_up"] = np.where(_mark, _rm[_sc] + 0.3, _rm[_sc])
         _rm[_sc + "_down"] = np.where(_mark, _rm[_sc] - 0.3, _rm[_sc])
     _up, _upp = p1_stat(ns, "A_rank_up"), p1_stat(ns, "A_rank_pos_up")
     _dn, _dnp = p1_stat(ns, "A_rank_down"), p1_stat(ns, "A_rank_pos_down")
-    _qu, _qup = pool_test(ns, "A_rank_up", y=_yf), pool_test(ns, "A_rank_pos_up", y=_yf)
-    _qd, _qdp = pool_test(ns, "A_rank_down", y=_yf), pool_test(ns, "A_rank_pos_down", y=_yf)
+    _qu, _qup = clean_test(ns, "A_rank_up", y=_yc), clean_test(ns, "A_rank_pos_up", y=_yc)
+    _qd, _qdp = clean_test(ns, "A_rank_down", y=_yc), clean_test(ns, "A_rank_pos_down", y=_yc)
     print(f"planted +0.3: AUC {_up['auc']:.4f} / {_upp['auc']:.4f}, p {_up['p']:.4f} / {_upp['p']:.4f}, pool AUC {_qu['auc']:.4f} / "
           f"{_qup['auc']:.4f}, pool p {_qu['p']:.4f} / {_qup['p']:.4f}; planted -0.3: AUC {_dn['auc']:.4f} / {_dnp['auc']:.4f}, "
           f"pool AUC {_qd['auc']:.4f} / {_qdp['auc']:.4f}")
@@ -640,6 +968,7 @@ print(f"reported (secondary, arm vs non-arm last outings, COVID-related rows lef
       f"{S2P['auc']:.4f}, floor mean {S2['floor'].mean():.4f} / {S2P['floor'].mean():.4f}, p {S2['p']:.4f} / {S2P['p']:.4f}; "
       f"arm {S2['pos']}, non-arm {S2['rows'] - S2['pos']} -> "
       f"{'arm-specific' if S2['p'] <= 0.025 and S2P['p'] <= 0.025 else 'not shown to be arm-specific'}")
+reported_v82(ns, "C2 2021-2023 (reported)")
 if FAKE_RUN:  # the secondary's path on computable labels: the 30 fake pool positives against all pool 0 rows, its own rule
     _ys = np.where(_yf == 0.0, 0.0, np.nan)
     _ys[_yf == 1.0] = 1.0
@@ -673,8 +1002,9 @@ print(f"reported: dev (mph) in the C2 rows: positives mean {pos.dev.mean():+.3f}
 summary = pd.DataFrame([{"test": "C2 MLB 2021-2023 last outing before an arm placement, no early hook, daily rank of A",
                          "value": C2["auc"], "lo95": C2["lo95"], "p_rotation": C2["p"], "position_adjusted": C2P["auc"],
                          "position_adjusted_lo95": C2P["lo95"], "position_adjusted_p": C2P["p"],
-                         "pool_stratified_auc": Q2["auc"], "p_pool": Q2["p"], "position_adjusted_pool_stratified_auc": Q2P["auc"],
-                         "position_adjusted_p_pool": Q2P["p"], "positives": C2["pos"], "pool_positives": Q2["pos"],
+                         "clean_stratified_auc": Q2["auc"], "p_clean": Q2["p"], "position_adjusted_clean_stratified_auc": Q2P["auc"],
+                         "position_adjusted_p_clean": Q2P["p"], "positives": C2["pos"], "clean_positives": Q2["pos"],
+                         "clean_long_breaks": Q2["rows"] - Q2["pos"], "clean_fifth_reweighted_auc": Q2["reweighted"],
                          "secondary_arm_vs_nonarm_auc": S2["auc"], "secondary_p": S2["p"], "secondary_p_pos": S2P["p"],
                          "verdict": verdict}])
 if FAKE_RUN:
