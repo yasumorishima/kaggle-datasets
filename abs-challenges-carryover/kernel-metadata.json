@@ -1,0 +1,14 @@
+{
+  "id": "yasunorim/abs-challenges-does-skill-carry-aaa-to-mlb",
+  "title": "ABS Challenges: Does Skill Carry, AAA to MLB?",
+  "code_file": "abs-challenges-carryover.ipynb",
+  "language": "python",
+  "kernel_type": "notebook",
+  "is_private": "false",
+  "enable_gpu": "false",
+  "enable_internet": "false",
+  "dataset_sources": ["yasunorim/mlb-abs-challenges-aaa-2025-to-mlb-2026"],
+  "competition_sources": [],
+  "kernel_sources": [],
+  "keywords": ["baseball", "sports", "tabular"]
+}
