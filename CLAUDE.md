@@ -18,6 +18,16 @@ This repo is worked on in Claude Code cloud. The owner starts a session with jus
 - 2026-10-14..16: last-outing study `FREEZE_pitch_after.md` (`5bbe6ed`): P1 SUPPORTED (AUC 0.606), P2 not; independent check `41d840c`; confirmation on unseen MLB 2021-2023 `FREEZE_pitch_after_confirm.md` (`db13c49`, run once, GHA `38905732627`): SUPPORTED, README `e0b15e5`. The pitcher-injury series is closed.
 - 2026-10-17 (branch `matchup-diag`): pitch shape x swing shape study: label-free D0, development D1/D1c/D1d/D2/D3 on Kaggle (2024 -> 2025 only), PLAN v0-v2 and results README `5b324c7`. D3: against the quality rival Q+, the shape x shape gain is not separable from zero. D3b (fixed donor floor and plants) passed its planted-defect test off-repo but has **not run**.
 - 2026-10-18: ABS carry-over notebook published (`72dfaea`); frozen Triple-A 2026 -> MLB 2027 predictions committed (`b2a41c0`, md5 `90e2625b697ad91096bdc06ca584fd20`); ABS subtitle/tags synced (`5aa0b16`).
+- 2026-11-01 (cloud): reachability measured (section below): Kaggle REST via `www.kaggle.com` 200 (11 datasets), `kaggle` CLI 2.2.5 fails with "Authentication required"; Savant and Stats API 200.
+
+## Cloud reachability (measured 2026-11-01, cloud session)
+| Check | Result | Proof |
+|---|---|---|
+| `curl --max-time 60 "https://www.kaggle.com/api/v1/datasets/list?user=yasunorim"` (no key handled; the environment's network secret is attached by the proxy) | 200, 0.28 s | JSON list of 11 datasets, incl. `yasunorim/mlb-statcast-bat-tracking-2024-2025` |
+| `pip install kaggle` (2.2.5, kagglesdk 0.1.38) → `kaggle datasets list --user yasunorim` | **fails** | "Authentication required to call the Kaggle API." (no `~/.kaggle`, no `KAGGLE_*` variable in the session) |
+| Same with a dummy `KAGGLE_API_TOKEN` (not a real key) | **fails**, same message | CLI 2.x first checks the token by sending it in the request *body* to `api.kaggle.com` (`introspect_token`), so the proxy's header injection cannot help; its endpoint is fixed by `KAGGLE_API_ENVIRONMENT` (prod = `api.kaggle.com`), no way to point it at `www.kaggle.com` |
+| `curl --max-time 60 "https://baseballsavant.mlb.com/leaderboard/sprint_speed?year=2025&position=&team=&min=10&csv=true"` | 200, 0.18 s, 36,204 B | 579 CSV lines (header + 578 players), first row Trea Turner 30.3 |
+| `curl --max-time 60 "https://statsapi.mlb.com/api/v1/teams?sportId=1"` | 200, 0.20 s | 30 teams |
 
 ## What this is
 Baseball datasets the owner publishes on Kaggle (user `yasunorim`), each built in GitHub Actions and published only if its gates pass, plus the Kaggle notebooks that use them and pre-registered studies run as Kaggle kernels. Dataset list, links and every study result: `README.md` (main). Pre-registrations: `ohtani-2026-early-warning/FREEZE_*.md`; confirmation plan `pitcher-after-confirm/PLAN_after_confirm.md`.
@@ -49,7 +59,7 @@ All Kaggle work runs in GitHub Actions (secrets `KAGGLE_USERNAME`, `KAGGLE_KEY`)
 - Local checks in cloud: build scripts and study code can be run on fake data with `python`; `dataset4_statcast_bat_tracking/build.sh` pins `pandas==3.0.6`, `pyarrow==25.0.1`; dataset builds pin `savant-extras==0.6.0`.
 
 ## Data access (cloud network)
-`baseballsavant.mlb.com`, `statsapi.mlb.com`, `pypi.org` / `files.pythonhosted.org`, `github.com`, `www.kaggle.com`. A Kaggle credential for `www.kaggle.com` is configured in the cloud environment; the `kaggle` CLI calls `api.kaggle.com`, which may not receive it — **unverified from cloud for this repo**. Do not commit raw pitch data; datasets are rebuilt by their `build.sh` in Actions.
+`baseballsavant.mlb.com`, `statsapi.mlb.com`, `pypi.org` / `files.pythonhosted.org`, `github.com`, `www.kaggle.com`. A Kaggle credential for `www.kaggle.com` is configured in the cloud environment: authenticated `GET https://www.kaggle.com/api/v1/...` with curl works, but the **`kaggle` CLI does not work in cloud** (measured 2026-11-01, see "Cloud reachability"). So cloud can read Kaggle through `curl https://www.kaggle.com/api/v1/...`; pushing kernels / dataset versions stays on GitHub Actions (Next task 1 still needed). Do not commit raw pitch data; datasets are rebuilt by their `build.sh` in Actions.
 
 ## Not in the repo yet (owner to decide)
 - Matchup harness used up to 2026-10-18: `matchup_d3b.py` (md5 `e7e41d91`), the part files it was concatenated from (`matchup_core.py`, `_part2*.py`, `_part3*.py`, `_part4.py`, `_part5.py`, `_part6b.py`, `d3b_head.txt`), fake-data generator `mk_fake2.py`, planted-defect drivers `mut_d1/d2/d3/d3b.py`, `fetch_kernel.sh`, and the kernel logs of D0-D3. They lived on the Raspberry Pi (`~/claude-scratch/matchup/`) and a local scratchpad; as of 2026-11-01 neither location exists, so they must be rebuilt (the committed `matchup_d*.py` files are the concatenated kernels). The D0-D3 outputs may still be downloadable from the private Kaggle kernels `yasunorim/pitch-shape-x-swing-shape-development-*`.
