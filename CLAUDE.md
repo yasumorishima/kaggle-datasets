@@ -19,6 +19,7 @@ This repo is worked on in Claude Code cloud. The owner starts a session with jus
 - 2026-10-17 (branch `matchup-diag`): pitch shape x swing shape study: label-free D0, development D1/D1c/D1d/D2/D3 on Kaggle (2024 -> 2025 only), PLAN v0-v2 and results README `5b324c7`. D3: against the quality rival Q+, the shape x shape gain is not separable from zero. D3b (fixed donor floor and plants) passed its planted-defect test off-repo but has **not run**.
 - 2026-10-18: ABS carry-over notebook published (`72dfaea`); frozen Triple-A 2026 -> MLB 2027 predictions committed (`b2a41c0`, md5 `90e2625b697ad91096bdc06ca584fd20`); ABS subtitle/tags synced (`5aa0b16`).
 - 2026-11-01 (cloud): reachability measured (section below): Kaggle REST via `www.kaggle.com` 200 (11 datasets), `kaggle` CLI 2.2.5 fails with "Authentication required"; Savant and Stats API 200.
+- 2026-11-23 (cloud): added "Evaluation practice" (report unchanged strata; independent condition dimensions), from Anthropic's safety-evaluation article, owner-approved.
 
 ## Cloud reachability (measured 2026-11-01, cloud session)
 | Check | Result | Proof |
@@ -41,6 +42,11 @@ Baseball datasets the owner publishes on Kaggle (user `yasunorim`), each built i
 6. **Kaggle limits learned the hard way:** tags max 5 (more = version created but CLI errors and later steps stop); subtitle 20-80 and title 6-50 characters (checked by `update-dataset.yml` before the build); `kaggle datasets version` does not change the title; a new version shifts old column descriptions **by position**, so all of them must be re-entered from `settings.json`; Parquet files with ~115 columns cannot get column descriptions even in the UI (preview times out).
 7. **Column descriptions, cover images, title, tags: browser only.** README: "Column descriptions are not accepted through the API". Cloud has no browser on Kaggle, so cloud prepares `settings.json` / metadata and tells the owner what to enter; it must not report these as done.
 8. Never name the club whose job posting the owner uses as a career yardstick, in commits, files or PRs (data-source credits are fine).
+
+## Evaluation practice (評価の作法, 2026-11 addendum)
+Lessons from Anthropic's "Building strong safety evaluations" (2026-11-13), approved by the owner on 2026-11-23. Only what the rules above do not already cover (pre-registration, floors, planted defects, multiple-comparison correction). From the next study on:
+1. **Report the strata that did not move.** Every result table lists all pre-registered strata (MLB / Triple-A, role, each study in a family), including those where nothing changed or the sign flipped. Do not show only the strata that passed.
+2. **Build condition dimensions independently.** Before freezing, check that the conditions being compared do not move together in the data. If two dimensions are correlated, their contributions cannot be separated. Example: in the Ohtani series, pitch location and days until the next outing were entangled. Either cross them in a balanced design, or state in the FREEZE which one is held fixed and report the correlation.
 
 ## Next tasks (in order)
 1. **Make GitHub Actions reachable from cloud** (prerequisite for everything below). Add a push-triggered path, e.g. a `requests/*.json` file on `main` that `push-notebook.yml` / `update-dataset.yml` read (keep `workflow_dispatch`), and a step that downloads a kernel's output (`kaggle kernels output`) and commits the log to a results branch, because nothing in the repo fetches kernel output today. Unverified: whether cloud's GitHub token may push changes under `.github/workflows/`; if refused, report it to the owner instead of working around it.
